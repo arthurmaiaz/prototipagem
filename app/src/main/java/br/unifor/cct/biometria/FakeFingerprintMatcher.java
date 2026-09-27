@@ -3,15 +3,6 @@ package br.unifor.cct.biometria;
 import android.os.Handler;
 import android.os.Looper;
 
-/**
- * Implementação falsa de FingerprintMatcher, sem base real de professores.
- * Sempre "reconhece" o template capturado como um professor fixo (id 1),
- * para permitir testar o fluxo completo (BiometriaService -> ResultadoBiometria
- * -> ReservaApi.criarReserva) sem depender do SDK Nitgen.
- *
- * Ajuste PROFESSOR_ID_FAKE (ou a condição abaixo) se quiser simular falha
- * de match durante os testes.
- */
 public class FakeFingerprintMatcher implements FingerprintMatcher {
 
     private static final long LATENCIA_SIMULADA_MS = 400;

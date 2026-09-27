@@ -1,14 +1,5 @@
 package br.unifor.cct.biometria;
 
-/**
- * Orquestra a captura (FingerprintReader) e a identificação (FingerprintMatcher),
- * entregando o resultado final como ResultadoBiometria através de BiometriaCallback.
- *
- * É esta classe que a UI (Nikolas) deve usar — nunca fala com
- * FingerprintReader/FingerprintMatcher diretamente. Troque os fakes pelas
- * implementações reais (HamsterDxReader / matcher real com NBioBSPJNI)
- * aqui, sem tocar em nenhuma tela.
- */
 public class BiometriaService {
 
     private final FingerprintReader reader;
@@ -33,7 +24,7 @@ public class BiometriaService {
                         } else {
                             callback.onSucesso(new ResultadoBiometria(
                                     false, null,
-                                    "Digital não reconhecida. Tente novamente."));
+                                    "Digital nao reconhecida. Tente novamente."));
                         }
                     }
 

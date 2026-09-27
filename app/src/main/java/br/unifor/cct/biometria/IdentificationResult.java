@@ -1,10 +1,5 @@
 package br.unifor.cct.biometria;
 
-/**
- * Resultado bruto de uma identificação 1:N feita pelo FingerprintMatcher,
- * antes de virar um ResultadoBiometria (formato exposto pro
- * BiometriaService/UI).
- */
 public class IdentificationResult {
 
     private final boolean encontrado;
@@ -25,11 +20,6 @@ public class IdentificationResult {
         return professorId;
     }
 
-    /**
-     * Score de confiança do match, na escala do SDK biométrico usado.
-     * Sem significado definido para os fakes; será relevante na
-     * implementação real (NBioBSPJNI).
-     */
     public int getScore() {
         return score;
     }

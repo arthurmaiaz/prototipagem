@@ -3,13 +3,6 @@ package br.unifor.cct.biometria;
 import android.os.Handler;
 import android.os.Looper;
 
-/**
- * Implementação falsa de FingerprintReader, sem hardware, para testar o
- * fluxo (TesteBiometriaActivity, BiometriaService) no emulador.
- *
- * Simula latência de captura com Handler.postDelayed, no mesmo estilo do
- * MockReservaApi (api/).
- */
 public class FakeFingerprintReader implements FingerprintReader {
 
     private static final long LATENCIA_SIMULADA_MS = 600;
