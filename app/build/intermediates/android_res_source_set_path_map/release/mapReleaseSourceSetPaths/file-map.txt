@@ -1,0 +1,8 @@
+br.unifor.cct.app-pngs-0 /home/arthurmaia/Documents/prototipagem/app/build/generated/res/pngs/release
+br.unifor.cct.app-updated_navigation_xml-1 /home/arthurmaia/Documents/prototipagem/app/build/generated/updated_navigation_xml/release
+br.unifor.cct.app-packageReleaseResources-2 /home/arthurmaia/Documents/prototipagem/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
+br.unifor.cct.app-packageReleaseResources-3 /home/arthurmaia/Documents/prototipagem/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
+br.unifor.cct.app-release-4 /home/arthurmaia/Documents/prototipagem/app/build/intermediates/merged_res/release/mergeReleaseResources
+br.unifor.cct.app-main-5 /home/arthurmaia/Documents/prototipagem/app/src/main/res
+br.unifor.cct.app-release-6 /home/arthurmaia/Documents/prototipagem/app/src/release/res
+gradleHome-0 /home/arthurmaia/.gradle
