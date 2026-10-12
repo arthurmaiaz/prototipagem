@@ -3,6 +3,7 @@ package br.unifor.cct.api;
 import android.os.Handler;
 import android.os.Looper;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,21 +15,27 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
+import br.unifor.cct.model.Professor;
 import br.unifor.cct.model.Reserva;
 
 /**
- * Implementação real da ReservaApi, falando com o Web App do Google Apps
- * Script (URL terminada em /exec).
+ * Implementação real da ReservaApi e da ProfessorApi, falando com o Web App
+ * do Google Apps Script (URL terminada em /exec).
  *
  * Toda chamada é um POST com JSON no corpo:
  *   { "acao": "criarReserva", "token": ..., "professorId": 1, "projetorId": "PAT-001",
  *     "data": "2026-09-22", "inicio": "19:00", "fim": "21:00" }
  *   { "acao": "cancelarReserva" | "consultarReserva", "token": ..., "reservaId": 1000 }
- * e a resposta é { "sucesso": ..., "reservaId": ..., "mensagem": ... }.
+ *   { "acao": "listarProfessores", "token": ... }
+ * e a resposta é { "sucesso": ..., "reservaId": ..., "mensagem": ... }, mais
+ * "professores": [{ id, nome, matricula, ativo }] no caso de listarProfessores.
  *
  * O token autentica o terminal. Vai no corpo, e não num header, porque o
  * doPost(e) do Apps Script não tem acesso aos headers da requisição.
@@ -38,7 +45,7 @@ import br.unifor.cct.model.Reserva;
  * "sucesso": false vindo do Apps Script (ex.: projetor ocupado) chega em
  * onErro com a mensagem do servidor, como descrito em ReservaCallback.
  */
-public class AppsScriptClient implements ReservaApi {
+public class AppsScriptClient implements ReservaApi, ProfessorApi {
 
     private static final int TIMEOUT_CONEXAO_MS = 10_000;
     // O Apps Script às vezes demora alguns segundos na primeira chamada.
@@ -102,6 +109,12 @@ public class AppsScriptClient implements ReservaApi {
         enviar(callback, corpo("consultarReserva").put("reservaId", reservaId));
     }
 
+    @Override
+    public void listarProfessores(ProfessoresCallback callback) {
+        executar(corpo("listarProfessores"), AppsScriptClient::interpretarProfessores,
+                callback::onSucesso, callback::onErro);
+    }
+
     /** Libera a thread de rede. Chame quando o client não for mais usado. */
     public void encerrar() {
         rede.shutdown();
@@ -112,30 +125,42 @@ public class AppsScriptClient implements ReservaApi {
     }
 
     private void enviar(ReservaCallback callback, Corpo corpo) {
-        rede.execute(() -> {
-            ReservaResultado resultado;
-            try {
-                resultado = interpretar(post(corpo.json.toString()));
-            } catch (SocketTimeoutException e) {
-                entregarErro(callback, "O servidor demorou para responder. Tente novamente.");
-                return;
-            } catch (IOException e) {
-                entregarErro(callback, "Sem conexão com o servidor. Verifique a internet.");
-                return;
-            } catch (RespostaInvalidaException e) {
-                entregarErro(callback, e.getMessage());
-                return;
+        executar(corpo, texto -> {
+            ReservaResultado resultado = interpretar(texto);
+            if (!resultado.isSucesso()) {
+                throw new FalhaException(resultado.getMensagem());
             }
-            if (resultado.isSucesso()) {
-                entrega.execute(() -> callback.onSucesso(resultado));
-            } else {
-                entregarErro(callback, resultado.getMensagem());
-            }
-        });
+            return resultado;
+        }, callback::onSucesso, callback::onErro);
     }
 
-    private void entregarErro(ReservaCallback callback, String mensagem) {
-        entrega.execute(() -> callback.onErro(mensagem));
+    /** Converte o texto da resposta; lança FalhaException com a mensagem para o usuário. */
+    private interface Leitor<T> {
+        T ler(String texto) throws FalhaException;
+    }
+
+    /**
+     * Faz o POST na thread de rede e entrega exatamente um dos dois
+     * callbacks na thread de entrega.
+     */
+    private <T> void executar(Corpo corpo, Leitor<T> leitor,
+                              Consumer<T> sucesso, Consumer<String> erro) {
+        rede.execute(() -> {
+            T valor;
+            try {
+                valor = leitor.ler(post(corpo.json.toString()));
+            } catch (SocketTimeoutException e) {
+                entrega.execute(() -> erro.accept("O servidor demorou para responder. Tente novamente."));
+                return;
+            } catch (IOException e) {
+                entrega.execute(() -> erro.accept("Sem conexão com o servidor. Verifique a internet."));
+                return;
+            } catch (FalhaException e) {
+                entrega.execute(() -> erro.accept(e.getMessage()));
+                return;
+            }
+            entrega.execute(() -> sucesso.accept(valor));
+        });
     }
 
     /**
@@ -144,7 +169,7 @@ public class AppsScriptClient implements ReservaApi {
      * porque o HttpURLConnection não segue de forma confiável quando o
      * método é POST.
      */
-    private String post(String json) throws IOException, RespostaInvalidaException {
+    private String post(String json) throws IOException, FalhaException {
         String url = urlWebApp;
         String metodo = "POST";
         for (int i = 0; i <= MAX_REDIRECIONAMENTOS; i++) {
@@ -169,7 +194,7 @@ public class AppsScriptClient implements ReservaApi {
                 if (status >= 300 && status < 400) {
                     String destino = con.getHeaderField("Location");
                     if (destino == null) {
-                        throw new RespostaInvalidaException("Resposta inválida do servidor.");
+                        throw new FalhaException("Resposta inválida do servidor.");
                     }
                     url = new URL(new URL(url), destino).toString();
                     // 307/308 mantêm o POST; 301/302/303 viram GET.
@@ -179,7 +204,7 @@ public class AppsScriptClient implements ReservaApi {
                     continue;
                 }
                 if (status != HttpURLConnection.HTTP_OK) {
-                    throw new RespostaInvalidaException(
+                    throw new FalhaException(
                             "O servidor retornou um erro (HTTP " + status + ").");
                 }
                 try (InputStream in = con.getInputStream()) {
@@ -189,14 +214,14 @@ public class AppsScriptClient implements ReservaApi {
                 con.disconnect();
             }
         }
-        throw new RespostaInvalidaException("Redirecionamentos demais ao falar com o servidor.");
+        throw new FalhaException("Redirecionamentos demais ao falar com o servidor.");
     }
 
-    static ReservaResultado interpretar(String texto) throws RespostaInvalidaException {
+    static ReservaResultado interpretar(String texto) throws FalhaException {
         try {
             JSONObject o = new JSONObject(texto);
             if (!o.has("sucesso")) {
-                throw new RespostaInvalidaException("Resposta inválida do servidor.");
+                throw new FalhaException("Resposta inválida do servidor.");
             }
             boolean sucesso = o.getBoolean("sucesso");
             Integer reservaId = o.isNull("reservaId") || !o.has("reservaId")
@@ -209,7 +234,36 @@ public class AppsScriptClient implements ReservaApi {
         } catch (JSONException e) {
             // Normalmente é a página HTML de login do Google: o Web App não
             // foi implantado com acesso "Qualquer pessoa".
-            throw new RespostaInvalidaException("Resposta inválida do servidor.");
+            throw new FalhaException("Resposta inválida do servidor.");
+        }
+    }
+
+    /**
+     * Lê a lista de professores. Entradas sem id ou sem nome são ignoradas,
+     * para uma linha mal preenchida na planilha não impedir a sincronização.
+     */
+    static List<Professor> interpretarProfessores(String texto) throws FalhaException {
+        ReservaResultado resultado = interpretar(texto);
+        if (!resultado.isSucesso()) {
+            throw new FalhaException(resultado.getMensagem());
+        }
+        try {
+            JSONArray array = new JSONObject(texto).getJSONArray("professores");
+            List<Professor> lista = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject o = array.getJSONObject(i);
+                if (!o.has("id") || o.isNull("id") || o.optString("nome", "").trim().isEmpty()) {
+                    continue;
+                }
+                lista.add(new Professor(
+                        o.getInt("id"),
+                        o.getString("nome"),
+                        o.isNull("matricula") ? null : o.optString("matricula", null),
+                        o.optBoolean("ativo", true)));
+            }
+            return lista;
+        } catch (JSONException e) {
+            throw new FalhaException("Resposta inválida do servidor.");
         }
     }
 
@@ -237,8 +291,9 @@ public class AppsScriptClient implements ReservaApi {
         }
     }
 
-    static final class RespostaInvalidaException extends Exception {
-        RespostaInvalidaException(String mensagem) {
+    /** Falha com mensagem pronta para exibir: resposta inválida ou "sucesso": false. */
+    static final class FalhaException extends Exception {
+        FalhaException(String mensagem) {
             super(mensagem);
         }
     }
