@@ -42,6 +42,11 @@
             android:exported="true"
             android:label="Teste NFC"
             android:launchMode="singleTop" />
+
+        <activity
+            android:name=".ui.TesteReservaActivity"
+            android:exported="true"
+            android:label="Teste Reserva" />
     </application>
 
 </manifest>
