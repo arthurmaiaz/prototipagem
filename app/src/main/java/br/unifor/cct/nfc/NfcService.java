@@ -21,9 +21,12 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import br.unifor.cct.model.Projetor;
+
 /**
  * Leitura e gravação de tags NFC com o código do patrimônio do projetor
- * gravado em NDEF (record de texto, ex.: "PAT-001").
+ * gravado em NDEF (record de texto, ex.: "PAT-001"). Só códigos no padrão
+ * de Projetor.codigoValido() são aceitos, tanto na leitura quanto na gravação.
  *
  * Uso na Activity (IdentificacaoActivity / ReservaActivity):
  *
@@ -98,13 +101,28 @@ public class NfcService {
 
     /**
      * Ativa o modo de cadastro: a próxima tag encostada será gravada com o código.
+     * Se o código não seguir o padrão (ex.: "PAT-001"), o callback recebe o erro
+     * na hora e o modo de cadastro não é ativado.
      *
      * @param travar se true, a tag vira somente leitura depois de gravada (irreversível)
      */
     public void iniciarGravacao(String codigo, boolean travar, GravacaoCallback callback) {
-        this.codigoParaGravar = codigo == null ? null : codigo.trim();
+        String limpo = codigo == null ? null : codigo.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!Projetor.codigoValido(limpo)) {
+            limparModoGravacao();
+            if (callback != null) {
+                callback.onGravado(false, "Código inválido. Use o padrão PAT-001.");
+            }
+            return;
+        }
+        this.codigoParaGravar = limpo;
         this.travarAposGravar = travar;
         this.gravacaoCallback = callback;
+    }
+
+    /** O próximo toque de tag será uma gravação, e não uma leitura? */
+    public boolean isGravando() {
+        return codigoParaGravar != null;
     }
 
     public void cancelarGravacao() {
@@ -126,11 +144,17 @@ public class NfcService {
                 : tagLegado(intent);
 
         if (tag == null) {
-            entregarLeitura(false, null, "Não foi possível ler a tag. Tente novamente.");
+            if (isGravando()) {
+                if (gravacaoCallback != null) {
+                    gravacaoCallback.onGravado(false, "Não foi possível acessar a tag. Tente novamente.");
+                }
+            } else {
+                entregarLeitura(false, null, "Não foi possível ler a tag. Tente novamente.");
+            }
             return;
         }
 
-        if (codigoParaGravar != null && !codigoParaGravar.isEmpty()) {
+        if (isGravando()) {
             gravar(tag);
         } else {
             ler(tag);
@@ -157,14 +181,19 @@ public class NfcService {
             return;
         }
 
+        String textoInvalido = null;
         for (NdefRecord record : mensagem.getRecords()) {
             String texto = extrairTexto(record);
-            if (texto != null && !texto.isEmpty()) {
+            if (texto == null || texto.isEmpty()) continue;
+            if (Projetor.codigoValido(texto)) {
                 entregarLeitura(true, texto, "Projetor " + texto + " identificado.");
                 return;
             }
+            textoInvalido = texto;
         }
-        entregarLeitura(false, null, "Esta tag não contém um código de projetor.");
+        entregarLeitura(false, null, textoInvalido == null
+                ? "Esta tag não contém um código de projetor."
+                : "Código inválido na tag (\"" + textoInvalido + "\"). Cadastre a tag de novo.");
     }
 
     /** Extrai o texto de um record NDEF do tipo Text; devolve null se for de outro tipo. */
@@ -201,6 +230,7 @@ public class NfcService {
         // A escrita na tag é feita fora da thread principal
         executor.execute(() -> {
             String erro = null;
+            boolean travou = !travar;
             try {
                 NdefMessage mensagem = new NdefMessage(
                         NdefRecord.createTextRecord("pt", codigo));
@@ -215,7 +245,7 @@ public class NfcService {
                             erro = "O código não cabe nesta tag.";
                         } else {
                             ndef.writeNdefMessage(mensagem);
-                            if (travar) ndef.makeReadOnly();
+                            if (travar) travou = ndef.makeReadOnly();
                         }
                     } finally {
                         ndef.close();
@@ -227,7 +257,12 @@ public class NfcService {
                     } else {
                         formatavel.connect();
                         try {
-                            formatavel.format(mensagem);
+                            if (travar) {
+                                formatavel.formatReadOnly(mensagem);
+                                travou = true;
+                            } else {
+                                formatavel.format(mensagem);
+                            }
                         } finally {
                             formatavel.close();
                         }
@@ -238,10 +273,15 @@ public class NfcService {
             }
 
             final String erroFinal = erro;
+            final boolean travouFinal = travou;
             main.post(() -> {
                 if (erroFinal == null) {
                     limparModoGravacao(); // sucesso: sai do modo de cadastro
-                    if (callback != null) callback.onGravado(true, "Tag gravada com " + codigo + ".");
+                    if (callback != null) {
+                        callback.onGravado(true, travouFinal
+                                ? "Tag gravada com " + codigo + (travar ? " e travada." : ".")
+                                : "Tag gravada com " + codigo + ", mas não foi possível travá-la.");
+                    }
                 } else if (callback != null) {
                     // em caso de erro o modo continua ativo, para tentar de novo
                     callback.onGravado(false, erroFinal);

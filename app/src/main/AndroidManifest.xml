@@ -3,6 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- Opcional: o app instala em aparelho sem NFC e usa o QR Code. -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -30,6 +36,12 @@
             android:name=".ui.TesteBiometriaActivity"
             android:exported="true"
             android:label="Teste Biometria" />
+
+        <activity
+            android:name=".ui.TesteNfcActivity"
+            android:exported="true"
+            android:label="Teste NFC"
+            android:launchMode="singleTop" />
     </application>
 
 </manifest>
