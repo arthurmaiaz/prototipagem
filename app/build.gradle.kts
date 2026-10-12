@@ -1,7 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// URL e token do Apps Script ficam no local.properties (fora do Git).
+// Sem eles, o app usa o MockReservaApi (ver ReservaApiFactory).
+val localProperties = Properties().apply {
+    val arquivo = rootProject.file("local.properties")
+    if (arquivo.exists()) {
+        arquivo.inputStream().use { load(it) }
+    }
+}
+
+fun stringJava(valor: String): String =
+    "\"" + valor.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     namespace = "br.unifor.cct"
@@ -17,6 +31,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "APPS_SCRIPT_URL",
+            stringJava(localProperties.getProperty("appsScript.url", "")))
+        buildConfigField("String", "APPS_SCRIPT_TOKEN",
+            stringJava(localProperties.getProperty("appsScript.token", "")))
     }
 
     buildTypes {
@@ -32,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
