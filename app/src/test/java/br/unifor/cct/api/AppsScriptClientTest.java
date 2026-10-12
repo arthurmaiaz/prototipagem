@@ -10,9 +10,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import br.unifor.cct.model.Professor;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -135,7 +137,70 @@ public class AppsScriptClientTest {
         new AppsScriptClient("http://script.google.com/macros/s/x/exec", "segredo");
     }
 
+    @Test
+    public void listarProfessoresConverteListaEIgnoraLinhasIncompletas() throws Exception {
+        responderComoAppsScript(200, "{\"sucesso\":true,\"reservaId\":null,\"mensagem\":\"3 professor(es).\","
+                + "\"professores\":["
+                + "{\"id\":1,\"nome\":\"Ana Souza\",\"matricula\":\"12345\",\"ativo\":true},"
+                + "{\"id\":2,\"nome\":\"Bruno Lima\",\"matricula\":null,\"ativo\":false},"
+                + "{\"id\":3,\"nome\":\"\",\"matricula\":null,\"ativo\":true}]}");
+
+        RespostaProfessores r = listar();
+
+        assertNull(r.erro);
+        assertEquals(2, r.professores.size());
+        assertEquals("Ana Souza", r.professores.get(0).getNome());
+        assertEquals("12345", r.professores.get(0).getMatricula());
+        assertTrue(r.professores.get(0).isAtivo());
+        assertNull(r.professores.get(1).getMatricula());
+        assertEquals(false, r.professores.get(1).isAtivo());
+
+        JSONObject enviado = new JSONObject(servidor.takeRequest().getBody().readUtf8());
+        assertEquals("listarProfessores", enviado.getString("acao"));
+        assertEquals("segredo", enviado.getString("token"));
+    }
+
+    @Test
+    public void listarProfessoresComTokenErradoViraErro() throws Exception {
+        responderComoAppsScript(200,
+                "{\"sucesso\":false,\"reservaId\":null,\"mensagem\":\"Terminal não autorizado.\"}");
+
+        assertEquals("Terminal não autorizado.", listar().erro);
+    }
+
+    @Test
+    public void listarProfessoresSemCampoProfessoresViraRespostaInvalida() throws Exception {
+        responderComoAppsScript(200, "{\"sucesso\":true,\"reservaId\":null,\"mensagem\":\"ok\"}");
+
+        assertEquals("Resposta inválida do servidor.", listar().erro);
+    }
+
     // --- apoio ---
+
+    private static class RespostaProfessores {
+        List<Professor> professores;
+        String erro;
+    }
+
+    private RespostaProfessores listar() throws InterruptedException {
+        RespostaProfessores r = new RespostaProfessores();
+        CountDownLatch fim = new CountDownLatch(1);
+        client.listarProfessores(new ProfessoresCallback() {
+            @Override
+            public void onSucesso(List<Professor> professores) {
+                r.professores = professores;
+                fim.countDown();
+            }
+
+            @Override
+            public void onErro(String mensagem) {
+                r.erro = mensagem;
+                fim.countDown();
+            }
+        });
+        assertTrue("callback não foi chamado", fim.await(5, TimeUnit.SECONDS));
+        return r;
+    }
 
     private interface Chamada {
         void executar(ReservaCallback cb);

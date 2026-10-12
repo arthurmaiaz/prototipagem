@@ -3,6 +3,10 @@ package br.unifor.cct.api;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.Arrays;
+
+import br.unifor.cct.model.Professor;
+
 /**
  * Implementação falsa de ReservaApi, para montar e testar as telas
  * (IdentificacaoActivity, ReservaActivity) sem depender do Apps Script
@@ -15,7 +19,7 @@ import android.os.Looper;
  * quando o backend estiver pronto — nenhuma tela precisa mudar, pois
  * ambas conversam só através da interface ReservaApi.
  */
-public class MockReservaApi implements ReservaApi {
+public class MockReservaApi implements ReservaApi, ProfessorApi {
 
     private static final long LATENCIA_SIMULADA_MS = 800;
     private int proximoReservaId = 1000;
@@ -43,6 +47,15 @@ public class MockReservaApi implements ReservaApi {
     public void consultarReserva(int reservaId, ReservaCallback callback) {
         handler.postDelayed(() -> callback.onSucesso(
                 new ReservaResultado(true, reservaId, "Reserva ativa.")),
+                LATENCIA_SIMULADA_MS);
+    }
+
+    /** O id 1 é o mesmo que o FakeFingerprintMatcher devolve. */
+    @Override
+    public void listarProfessores(ProfessoresCallback callback) {
+        handler.postDelayed(() -> callback.onSucesso(Arrays.asList(
+                new Professor(1, "Professor Teste", "0001", true),
+                new Professor(2, "Professora Inativa", "0002", false))),
                 LATENCIA_SIMULADA_MS);
     }
 }

@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import br.unifor.cct.api.ProfessorApi;
+import br.unifor.cct.api.ProfessoresCallback;
 import br.unifor.cct.model.Professor;
 
 /**
@@ -20,7 +22,7 @@ import br.unifor.cct.model.Professor;
  *
  * Serve para a UI mostrar o nome de quem foi identificado pela biometria
  * sem precisar ir ao servidor. A fonte oficial é a aba "professores" do
- * Google Sheets: use substituirTodos() para sincronizar com ela.
+ * Google Sheets: use sincronizar() para baixar a lista de lá.
  *
  * Nada de biometria aqui: o vínculo digital -> professorId fica no
  * BiometricDatabase. Os dados ficam em SharedPreferences privado do app
@@ -77,6 +79,26 @@ public class ProfessorRepository {
         }
         cache = novo;
         persistir();
+    }
+
+    /**
+     * Baixa a lista do servidor e, se der certo, troca o cadastro local por
+     * ela. Em caso de erro o cadastro local fica como estava.
+     * O callback é repassado na mesma thread em que a api o chamou.
+     */
+    public void sincronizar(ProfessorApi api, ProfessoresCallback callback) {
+        api.listarProfessores(new ProfessoresCallback() {
+            @Override
+            public void onSucesso(List<Professor> professores) {
+                substituirTodos(professores);
+                callback.onSucesso(listar());
+            }
+
+            @Override
+            public void onErro(String mensagem) {
+                callback.onErro(mensagem);
+            }
+        });
     }
 
     private Map<Integer, Professor> carregar() {
