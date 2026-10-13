@@ -3,49 +3,61 @@ package br.unifor.cct.ui;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import android.view.View;
+import android.view.animation.DecelerateInterpolator;
+
+import br.unifor.cct.R;
 
 /**
- * Provisório: menu com as telas de teste, para abrir o app pelo ícone sem
- * precisar do adb. Será substituído pelo fluxo final (identificação,
- * leitura do projetor e confirmação da reserva).
+ * Tela inicial do aplicativo de Reserva de Projetores (CCT - Unifor).
+ * Permite navegação direta aos módulos do sistema com layout moderno
+ * inspirado na identidade visual da Unifor e no Unifor Mobile.
  */
 public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-        LinearLayout lista = new LinearLayout(this);
-        lista.setOrientation(LinearLayout.VERTICAL);
-        int margem = (int) (24 * getResources().getDisplayMetrics().density);
-        lista.setPadding(margem, margem, margem, margem);
+        View cardDigital = findViewById(R.id.cardCadastrarDigital);
+        View cardReserva = findViewById(R.id.cardReservar);
+        View cardNfc = findViewById(R.id.cardCadastrarTagNfc);
+        View cardCaptura = findViewById(R.id.cardTesteCaptura);
+        View cardUsb = findViewById(R.id.cardConexaoUsb);
+        View cardBiometriaFake = findViewById(R.id.cardBiometriaFake);
 
-        TextView titulo = new TextView(this);
-        titulo.setText("Reserva de Projetores CCT\nTelas de teste");
-        titulo.setTextSize(20);
-        titulo.setPadding(0, 0, 0, margem);
-        lista.addView(titulo);
+        vincularAcesso(cardDigital, TesteDigitalActivity.class);
+        vincularAcesso(cardReserva, TesteReservaActivity.class);
+        vincularAcesso(cardNfc, TesteNfcActivity.class);
+        vincularAcesso(cardCaptura, TesteCapturaActivity.class);
+        vincularAcesso(cardUsb, TesteUsbActivity.class);
+        vincularAcesso(cardBiometriaFake, TesteBiometriaActivity.class);
 
-        adicionar(lista, "Digital (Hamster DX)", TesteDigitalActivity.class);
-        adicionar(lista, "Reserva (Apps Script)", TesteReservaActivity.class);
-        adicionar(lista, "NFC", TesteNfcActivity.class);
-        adicionar(lista, "Captura (SDK Nitgen)", TesteCapturaActivity.class);
-        adicionar(lista, "Conexão USB", TesteUsbActivity.class);
-        adicionar(lista, "Biometria fake", TesteBiometriaActivity.class);
-
-        ScrollView rolagem = new ScrollView(this);
-        rolagem.addView(lista);
-        setContentView(rolagem);
+        animarEntrada(cardDigital, cardReserva, cardNfc, cardCaptura, cardUsb, cardBiometriaFake);
     }
 
-    private void adicionar(LinearLayout lista, String texto, Class<? extends Activity> tela) {
-        Button botao = new Button(this);
-        botao.setText(texto);
-        botao.setOnClickListener(v -> startActivity(new Intent(this, tela)));
-        lista.addView(botao);
+    private void vincularAcesso(View view, Class<? extends Activity> destino) {
+        if (view != null) {
+            view.setOnClickListener(v -> startActivity(new Intent(this, destino)));
+        }
+    }
+
+    private void animarEntrada(View... cards) {
+        long delay = 50;
+        for (View card : cards) {
+            if (card != null) {
+                card.setAlpha(0f);
+                card.setTranslationY(20f);
+                card.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(260)
+                        .setStartDelay(delay)
+                        .setInterpolator(new DecelerateInterpolator())
+                        .start();
+                delay += 40;
+            }
+        }
     }
 }

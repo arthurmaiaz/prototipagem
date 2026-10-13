@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Bruniforcct" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Bruniforcct" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/unifor_primary_dark</item>
+        <item name="android:navigationBarColor">@color/unifor_bg_surface</item>
+        <item name="android:windowBackground">@color/unifor_bg_surface</item>
+        <item name="android:colorPrimary">@color/unifor_primary_brand</item>
+        <item name="android:colorPrimaryDark">@color/unifor_primary_dark</item>
+        <item name="android:colorAccent">@color/unifor_accent_blue</item>
+    </style>
 </resources>
