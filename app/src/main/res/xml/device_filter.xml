@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Leitores biométricos reconhecidos pelo app quando conectados via OTG.
+    Valores em decimal: o Android não aceita hexadecimal aqui.
+
+    Nitgen FingKey Hamster DX (aparece como "NITGEN FDU06"):
+    vendor 0x0A86 = 2694, product 0x0100 = 256.
+-->
+<resources>
+    <usb-device vendor-id="2694" product-id="256" />
+</resources>
