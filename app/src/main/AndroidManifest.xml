@@ -55,15 +55,11 @@
             android:exported="true"
             android:label="Teste Reserva" />
 
+        <!-- Abre sozinha ao conectar o Hamster DX (já com a permissão USB). -->
         <activity
-            android:name=".ui.TesteCapturaActivity"
+            android:name=".ui.TesteDigitalActivity"
             android:exported="true"
-            android:label="Teste Captura" />
-
-        <activity
-            android:name=".ui.TesteUsbActivity"
-            android:exported="true"
-            android:label="Teste USB"
+            android:label="Teste Digital"
             android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
@@ -72,6 +68,16 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <activity
+            android:name=".ui.TesteCapturaActivity"
+            android:exported="true"
+            android:label="Teste Captura" />
+
+        <activity
+            android:name=".ui.TesteUsbActivity"
+            android:exported="true"
+            android:label="Teste USB" />
     </application>
 
 </manifest>

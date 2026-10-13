@@ -1,0 +1,418 @@
+package br.unifor.cct.biometria.nitgen;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.util.Log;
+
+import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Único ponto do app que fala com o eNBioBSP SDK da Nitgen (leitor
+ * Hamster DX). HamsterDxReader, NitgenMatcher e CadastroDigitalNitgen
+ * usam esta classe; nada fora do pacote nitgen conhece o SDK.
+ *
+ * Todas as chamadas ao SDK rodam numa única thread (executar), porque a
+ * captura bloqueia até ler o dedo e o SDK não é feito para ser chamado
+ * de várias threads ao mesmo tempo. Os métodos marcados "só dentro de
+ * executar" são síncronos e não podem ser chamados de outro lugar.
+ *
+ * Os templates circulam como texto (TextFIR, base64 gerado pelo SDK).
+ * A imagem da digital nunca sai desta classe, a não ser para o Listener
+ * mostrar na tela durante a captura.
+ *
+ * Criar na thread principal: o SDK cria um Handler no construtor.
+ */
+public class NitgenSdk {
+
+    /** Tempo máximo esperando o dedo, em ms. */
+    public static final int TIMEOUT_CAPTURA_MS = 10_000;
+    /**
+     * Qualidade da imagem a partir da qual a captura é encerrada pelo app.
+     * O Hamster DX só informa 60, 80 ou 100, e o próprio SDK às vezes
+     * encerra a captura em 60 antes de chegar aqui.
+     */
+    public static final int QUALIDADE_MINIMA = 80;
+    /** Menor qualidade que o SDK devolve; é a aceita no cadastro. */
+    public static final int QUALIDADE_ACEITA = 60;
+    /**
+     * Tempo máximo esperando o leitor dizer que o dedo saiu. No Hamster DX o
+     * CheckFinger continuou indicando dedo mesmo depois de tirado, então
+     * passado esse tempo o cadastro segue (vira uma pausa fixa).
+     */
+    private static final int TIMEOUT_TIRAR_DEDO_MS = 3_000;
+    /** Mínimo entre as leituras do cadastro, mesmo que o leitor diga que não há dedo. */
+    private static final int INTERVALO_MINIMO_MS = 700;
+    /**
+     * O IndexSearch só aceita uma amostra por id (o segundo AddFIR com o mesmo
+     * id devolve DUPLICATED_ID). Por isso cada amostra entra no índice com um
+     * id próprio: professorId * AMOSTRAS_POR_ID + número da amostra
+     * (professor 1 vira 101 e 102), e a busca converte de volta.
+     */
+    private static final int AMOSTRAS_POR_ID = 100;
+    /**
+     * Nível de segurança da busca 1:N e da comparação 1:1 (escala de 1 a 9).
+     * Com NORMAL (5), o indicador de uma pessoa foi reconhecido como o de
+     * outra nos testes. Confundir professores é pior do que pedir para
+     * colocar o dedo de novo, então fica em HIGH.
+     */
+    private static final int NIVEL_SEGURANCA = NBioBSPJNI.FIR_SECURITY_LEVEL.HIGH;
+    /** Tempo máximo da busca 1:N, em ms (o exemplo da Nitgen usa 2000). */
+    private static final int TIMEOUT_BUSCA_MS = 5_000;
+    private static final String TAG = "NitgenSdk";
+
+    /** Eventos do leitor, sempre entregues na thread principal. */
+    public interface Listener {
+        void onConectado();
+
+        void onDesconectado();
+
+        /** Cada imagem lida durante a captura, para feedback na tela. */
+        void onImagem(int qualidade, Bitmap imagem);
+    }
+
+    public interface Tarefa<T> {
+        T executar() throws NitgenException;
+    }
+
+    public interface Resultado<T> {
+        void onSucesso(T valor);
+
+        void onErro(String mensagem);
+    }
+
+    private final NBioBSPJNI bsp;
+    private final NBioBSPJNI.IndexSearch indice;
+    private final ExecutorService thread = Executors.newSingleThreadExecutor();
+    private final Handler principal = new Handler(Looper.getMainLooper());
+
+    private volatile Listener listener;
+    private volatile boolean conectado;
+
+    /**
+     * @param serial código serial do SDK (nitgen.serial no local.properties)
+     * @throws NitgenException se o SDK não iniciar (ex.: serial inválido)
+     */
+    public NitgenSdk(Context context, String serial) throws NitgenException {
+        if (serial == null || serial.isEmpty()) {
+            throw new NitgenException("Falta nitgen.serial no local.properties.");
+        }
+        long inicio = SystemClock.elapsedRealtime();
+        bsp = new NBioBSPJNI(serial, context.getApplicationContext(), callback);
+        Log.d(TAG, "SDK iniciado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
+        if (bsp.IsErrorOccured()) {
+            String erro = codigo(bsp.GetErrorCode());
+            bsp.dispose();
+            throw new NitgenException("O SDK do leitor não iniciou (" + erro + ").");
+        }
+        indice = bsp.new IndexSearch();
+        configurar();
+    }
+
+    public void setListener(Listener listener) {
+        this.listener = listener;
+    }
+
+    public String getVersao() {
+        return bsp.GetVersion();
+    }
+
+    public boolean isConectado() {
+        return conectado;
+    }
+
+    /** Abre o leitor. O SDK pede a permissão USB; o resultado chega no Listener. */
+    public void abrir() {
+        bsp.OpenDevice();
+    }
+
+    public void fechar() {
+        bsp.releaseDevice();
+        conectado = false;
+    }
+
+    /** Interrompe uma captura em andamento; ela termina com "Captura cancelada". */
+    public void cancelarCaptura() {
+        bsp.CaptureCancel();
+    }
+
+    /**
+     * Chamar quando o app não for mais usar o leitor. Cancela a captura em
+     * andamento e libera o leitor na thread do SDK, depois da tarefa atual,
+     * para não travar a tela ao fechar.
+     */
+    public void encerrar() {
+        bsp.CaptureCancel();
+        thread.execute(() -> {
+            long inicio = SystemClock.elapsedRealtime();
+            indice.dispose();
+            bsp.releaseDevice();
+            bsp.dispose();
+            Log.d(TAG, "SDK liberado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
+        });
+        thread.shutdown();
+    }
+
+    /** Roda a tarefa na thread do SDK e entrega o resultado na thread principal. */
+    public <T> void executar(Tarefa<T> tarefa, Resultado<T> resultado) {
+        thread.execute(() -> {
+            try {
+                T valor = tarefa.executar();
+                principal.post(() -> resultado.onSucesso(valor));
+            } catch (NitgenException e) {
+                principal.post(() -> resultado.onErro(e.getMessage()));
+            } catch (RuntimeException e) {
+                principal.post(() -> resultado.onErro("Erro inesperado no leitor: " + e));
+            }
+        });
+    }
+
+    /** Entrega um aviso na thread principal, de dentro de uma tarefa. */
+    public void naPrincipal(Runnable acao) {
+        principal.post(acao);
+    }
+
+    // ------------------------------------------------- só dentro de executar
+
+    /**
+     * Captura uma digital e devolve o template em texto.
+     *
+     * @param finalidade NBioBSPJNI.FIR_PURPOSE: ENROLL para cadastrar e para
+     *                   buscar no índice (como no exemplo da Nitgen), VERIFY
+     *                   para a comparação 1:1
+     */
+    public String capturar(int finalidade) throws NitgenException {
+        return capturar(finalidade, 0);
+    }
+
+    /**
+     * Como capturar(finalidade), mas recusa a leitura se a qualidade final
+     * ficar abaixo de qualidadeExigida (usado no cadastro).
+     */
+    public String capturar(int finalidade, int qualidadeExigida) throws NitgenException {
+        if (!conectado) {
+            throw new NitgenException("Leitor biométrico não conectado.");
+        }
+        NBioBSPJNI.FIR_HANDLE template = bsp.new FIR_HANDLE();
+        // Obrigatório, apesar de o guia dizer que pode ser null: o SDK grava
+        // a imagem aqui e gera o template a partir dela, sem checar null.
+        // Contém a imagem da digital, então é descartado logo em seguida.
+        NBioBSPJNI.FIR_HANDLE imagem = bsp.new FIR_HANDLE();
+        NBioBSPJNI.CAPTURED_DATA dados = bsp.new CAPTURED_DATA();
+        try {
+            bsp.Capture(finalidade, template, TIMEOUT_CAPTURA_MS, imagem, dados);
+            // Lido antes dos dispose, que podem sobrescrever o código de erro.
+            if (bsp.IsErrorOccured()) {
+                int erro = bsp.GetErrorCode();
+                Log.d(TAG, "Capture(finalidade=" + finalidade + ") erro " + codigo(erro));
+                throw new NitgenException(mensagemDeErro(erro));
+            }
+            NBioBSPJNI.FIR_TEXTENCODE texto = bsp.new FIR_TEXTENCODE();
+            bsp.GetTextFIRFromHandle(template, texto, NBioBSPJNI.FIR_FORMAT.STANDARD);
+            if (bsp.IsErrorOccured() || texto.TextFIR == null || texto.TextFIR.isEmpty()) {
+                throw new NitgenException("O leitor não gerou o template da digital.");
+            }
+            int qualidade = dados.getImageQuality();
+            Log.d(TAG, "Capture(finalidade=" + finalidade + ") qualidade " + qualidade
+                    + ", template " + texto.TextFIR.length() + " caracteres");
+            if (qualidade < qualidadeExigida) {
+                throw new NitgenException("Leitura fraca (qualidade " + qualidade
+                        + "). Apoie o dedo inteiro, sem pressionar demais, e tente de novo.");
+            }
+            return texto.TextFIR;
+        } finally {
+            imagem.dispose();
+            template.dispose();
+        }
+    }
+
+    /**
+     * Dá tempo para o dedo sair do leitor, para a próxima leitura ser uma
+     * colocação nova do dedo, e não a mesma imagem de novo. Usa o
+     * CheckFinger quando ele responde; senão, espera o tempo máximo.
+     */
+    public void aguardarDedoSair() throws NitgenException {
+        long inicio = SystemClock.elapsedRealtime();
+        byte[] temDedo = new byte[1];
+        int ultimoErro = -1;
+        int ultimoValor = -1;
+        while (true) {
+            long passou = SystemClock.elapsedRealtime() - inicio;
+            int erro = bsp.CheckFinger(temDedo);
+            if (erro != ultimoErro || temDedo[0] != ultimoValor) {
+                Log.d(TAG, "CheckFinger " + codigo(erro) + ", dedo=" + temDedo[0] + " em " + passou + " ms");
+                ultimoErro = erro;
+                ultimoValor = temDedo[0];
+            }
+            if (erro == NBioBSPJNI.ERROR.NBioAPIERROR_NONE && temDedo[0] == 0
+                    && passou >= INTERVALO_MINIMO_MS) {
+                return;
+            }
+            if (passou >= TIMEOUT_TIRAR_DEDO_MS) {
+                Log.d(TAG, "Sem confirmação de que o dedo saiu; seguindo após " + passou + " ms");
+                return;
+            }
+            dormir(150);
+        }
+    }
+
+    private static void dormir(long ms) throws NitgenException {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new NitgenException("Leitura interrompida.");
+        }
+    }
+
+    /** Compara dois templates 1:1. */
+    public boolean mesmaDigital(String a, String b) throws NitgenException {
+        // O SDK escreve o resultado dentro deste objeto via JNI. Precisa ser
+        // uma instância nova: nunca Boolean.FALSE, que é compartilhado.
+        @SuppressWarnings({"deprecation", "BooleanConstructorCall", "UseValueOf"})
+        Boolean igual = new Boolean(false);
+        bsp.VerifyMatch(entrada(a), entrada(b), igual, null);
+        Log.d(TAG, "VerifyMatch " + codigo(bsp.GetErrorCode()) + ", igual=" + igual);
+        if (bsp.IsErrorOccured()) {
+            throw new NitgenException("Falha ao comparar digitais (" + codigo(bsp.GetErrorCode()) + ").");
+        }
+        return igual;
+    }
+
+    /** Esvazia o índice de busca 1:N (só memória; o BiometricDatabase não muda). */
+    public void limparIndice() throws NitgenException {
+        int erro = indice.ClearDB();
+        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
+            throw new NitgenException("Falha ao limpar o índice de digitais (" + codigo(erro) + ").");
+        }
+    }
+
+    /** Coloca (ou troca) a digital do professor no índice de busca, com todas as amostras. */
+    public void indexar(int professorId, List<String> amostras) throws NitgenException {
+        if (amostras.size() >= AMOSTRAS_POR_ID) {
+            throw new NitgenException("Amostras demais para o professor " + professorId + ".");
+        }
+        removerDoIndice(professorId);
+        for (int i = 0; i < amostras.size(); i++) {
+            int idNoIndice = professorId * AMOSTRAS_POR_ID + i + 1;
+            NBioBSPJNI.IndexSearch.SAMPLE_INFO info = indice.new SAMPLE_INFO();
+            int erro = indice.AddFIR(entrada(amostras.get(i)), idNoIndice, info);
+            Log.d(TAG, "AddFIR(" + idNoIndice + ") " + codigo(erro));
+            if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
+                throw new NitgenException("Falha ao indexar a digital do professor "
+                        + professorId + " (" + codigo(erro) + ").");
+            }
+        }
+    }
+
+    public void removerDoIndice(int professorId) {
+        // RemoveUser devolve erro para ids que não estão no índice; nesse caso
+        // não há o que remover. Cobre todas as amostras possíveis do professor.
+        for (int i = 1; i < AMOSTRAS_POR_ID; i++) {
+            indice.RemoveUser(professorId * AMOSTRAS_POR_ID + i);
+        }
+    }
+
+    /** Busca 1:N. @return o professorId, ou null se a digital não estiver cadastrada. */
+    public Integer identificar(String template) throws NitgenException {
+        NBioBSPJNI.IndexSearch.FP_INFO info = indice.new FP_INFO();
+        // A versão sem timeout repassa -1 ao SDK; o exemplo da Nitgen sempre informa um.
+        int erro = indice.Identify(entrada(template), NIVEL_SEGURANCA, info, TIMEOUT_BUSCA_MS);
+        Log.d(TAG, "Identify " + codigo(erro) + ", ID=" + info.ID);
+        if (erro == NBioBSPJNI.ERROR.NBioAPIERROR_INDEXSEARCH_IDENTIFY_FAIL) {
+            return null;
+        }
+        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
+            throw new NitgenException("Falha na busca da digital (" + codigo(erro) + ").");
+        }
+        // O SDK usa 0 para "nenhum"; os ids no índice começam em 101.
+        return info.ID == 0 ? null : info.ID / AMOSTRAS_POR_ID;
+    }
+
+    // ------------------------------------------------------------ internos
+
+    private NBioBSPJNI.INPUT_FIR entrada(String template) {
+        NBioBSPJNI.FIR_TEXTENCODE texto = bsp.new FIR_TEXTENCODE();
+        texto.TextFIR = template;
+        NBioBSPJNI.INPUT_FIR entrada = bsp.new INPUT_FIR();
+        entrada.SetTextFIR(texto);
+        return entrada;
+    }
+
+    /** Mesmos valores do app de exemplo da Nitgen. */
+    private void configurar() {
+        NBioBSPJNI.INIT_INFO_0 init = bsp.new INIT_INFO_0();
+        bsp.GetInitInfo(init);
+        init.DefaultTimeout = TIMEOUT_CAPTURA_MS;
+        init.EnrollImageQuality = 50;
+        init.IdentifyImageQuality = 50;
+        init.VerifyImageQuality = 30;
+        init.SecurityLevel = NIVEL_SEGURANCA;
+        bsp.SetInitInfo(init);
+    }
+
+    private static String mensagemDeErro(int codigo) {
+        switch (codigo) {
+            case NBioBSPJNI.ERROR.NBioAPIERROR_CAPTURE_TIMEOUT:
+                return "Nenhum dedo detectado a tempo. Tente de novo.";
+            case NBioBSPJNI.ERROR.NBioAPIERROR_USER_CANCEL:
+                return "Captura cancelada.";
+            case NBioBSPJNI.ERROR.NBioAPIERROR_DEVICE_NOT_OPENED:
+                return "Leitor biométrico não conectado.";
+            default:
+                return "Erro do leitor (" + codigo(codigo) + ").";
+        }
+    }
+
+    private static String codigo(int codigo) {
+        return "código 0x" + Integer.toHexString(codigo);
+    }
+
+    private final NBioBSPJNI.CAPTURE_CALLBACK callback = new NBioBSPJNI.CAPTURE_CALLBACK() {
+        @Override
+        public void OnConnected() {
+            conectado = true;
+            principal.post(() -> {
+                Listener l = listener;
+                if (l != null) l.onConectado();
+            });
+        }
+
+        @Override
+        public void OnDisConnected() {
+            conectado = false;
+            principal.post(() -> {
+                Listener l = listener;
+                if (l != null) l.onDesconectado();
+            });
+        }
+
+        /**
+         * Chamado várias vezes durante a captura, a cada imagem lida.
+         * Devolver USER_CANCEL encerra a captura com a imagem atual, como
+         * faz o exemplo da Nitgen; NONE continua tentando.
+         */
+        @Override
+        public int OnCaptured(NBioBSPJNI.CAPTURED_DATA dados) {
+            int qualidade = dados.getImageQuality();
+            Bitmap imagem = dados.getImage();
+            principal.post(() -> {
+                Listener l = listener;
+                if (l != null) l.onImagem(qualidade, imagem);
+            });
+            if (qualidade >= QUALIDADE_MINIMA) {
+                return NBioBSPJNI.ERROR.NBioAPIERROR_USER_CANCEL;
+            }
+            if (dados.getDeviceError() != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
+                return dados.getDeviceError();
+            }
+            return NBioBSPJNI.ERROR.NBioAPIERROR_NONE;
+        }
+    };
+}
