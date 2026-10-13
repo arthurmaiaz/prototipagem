@@ -1,3 +1,31 @@
 <resources>
     <string name="app_name">br.unifor.cct</string>
+
+    <!-- Cabeçalho Unifor -->
+    <string name="unifor_nome_universidade">UNIVERSIDADE DE FORTALEZA</string>
+    <string name="unifor_tag_cct">CCT • Centro de Ciências Tecnológicas</string>
+    <string name="unifor_titulo_home">Reserva de Projetores</string>
+    <string name="unifor_subtitulo_home">Módulos de teste e operação</string>
+    <string name="unifor_secao_acessos">MÓDULOS DE ACESSO</string>
+
+    <!-- 6 Acessos Principais -->
+    <string name="menu_cadastrar_digital">Cadastrar digital</string>
+    <string name="menu_cadastrar_digital_desc">Leitor biométrico Hamster DX</string>
+
+    <string name="menu_reservar">Reservar</string>
+    <string name="menu_reservar_desc">Fluxo de reserva (Apps Script)</string>
+
+    <string name="menu_cadastrar_tag_nfc">Cadastrar tag (NFC)</string>
+    <string name="menu_cadastrar_tag_nfc_desc">Leitura e gravação de tags por aproximação</string>
+
+    <string name="menu_teste_captura">Teste de captura</string>
+    <string name="menu_teste_captura_desc">Captura direta via SDK Nitgen</string>
+
+    <string name="menu_conexao_usb">Conexão USB</string>
+    <string name="menu_conexao_usb_desc">Diagnóstico e permissão OTG</string>
+
+    <string name="menu_biometria_fake">Biometria fake</string>
+    <string name="menu_biometria_fake_desc">Simulação de validação biométrica</string>
+
+    <string name="unifor_rodape">Universidade de Fortaleza • CCT</string>
 </resources>

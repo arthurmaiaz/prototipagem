@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Default colors -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
@@ -7,4 +8,23 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Identidade Visual Unifor (Universidade de Fortaleza) -->
+    <color name="unifor_primary_dark">#00223A</color>
+    <color name="unifor_primary">#003366</color>
+    <color name="unifor_primary_brand">#004B87</color>
+    <color name="unifor_primary_light">#0060AA</color>
+    <color name="unifor_accent_blue">#0077CC</color>
+    <color name="unifor_accent_cyan">#0091DA</color>
+    <color name="unifor_bg_surface">#F2F5F9</color>
+    <color name="unifor_card_bg">#FFFFFFFF</color>
+    <color name="unifor_card_stroke">#DDE6F0</color>
+    <color name="unifor_card_badge_bg">#EBF2F9</color>
+    <color name="unifor_text_primary">#0A2138</color>
+    <color name="unifor_text_secondary">#546E87</color>
+    <color name="unifor_header_tag_bg">#22FFFFFF</color>
+    <color name="unifor_header_tag_stroke">#4DFFFFFF</color>
+    <color name="unifor_header_subtext">#B8D2E8</color>
+    <color name="unifor_chevron">#8EA6BF</color>
+    <color name="unifor_ripple">#1E004B87</color>
 </resources>
