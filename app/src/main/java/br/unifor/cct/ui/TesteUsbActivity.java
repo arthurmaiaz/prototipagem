@@ -35,8 +35,8 @@ import br.unifor.cct.R;
  * leitor: o protocolo é da Nitgen (classe "Vendor Specific") e a captura
  * da digital depende do SDK deles.
  *
- * Com o leitor espetado, o Android também oferece abrir esta tela sozinho
- * (intent-filter USB_DEVICE_ATTACHED + res/xml/device_filter.xml).
+ * A tela que abre sozinha ao conectar o leitor agora é a
+ * TesteDigitalActivity; esta continua acessível pelo menu da MainActivity.
  */
 public class TesteUsbActivity extends Activity {
 
