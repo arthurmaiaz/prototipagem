@@ -7,6 +7,11 @@ O app usa o SDK da Nitgen para capturar a digital no leitor Hamster DX
 para o repositório** (este repositório é público): o `.gitignore` ignora
 `app/libs/*.aar`. Sem ele o build para com uma mensagem apontando para cá.
 
+> Até 12/10/2026 o arquivo `NBioBSPJNI_v2.0.0.10(18).aar` estava no
+> repositório e foi removido. Ele continua no histórico antigo do Git, mas
+> as versões novas não o distribuem mais. Depois do `git pull`, ele some
+> desta pasta: guarde uma cópia e siga os passos abaixo.
+
 Para compilar:
 
 1. Peça o pacote **"[BETA] eNBioBSP SDK for Android v2.0.0.10(18)"** a quem
