@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/unifor_bg_surface"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Cabeçalho FAQ com botão voltar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_header_gradient"
+            android:elevation="4dp"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="24dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/btnVoltarFaq"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:contentDescription="Voltar"
+                    android:focusable="true"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_arrow_back" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/faq_titulo"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_pill_header"
+                    android:paddingStart="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="4dp"
+                    android:text="AJUDA"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="44dp"
+                android:layout_marginTop="2dp"
+                android:text="@string/faq_subtitulo"
+                android:textColor="@color/unifor_header_subtext"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="20dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="24dp">
+
+            <!-- Banner Informativo -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_banner_info"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginTop="2dp"
+                    android:contentDescription="Info"
+                    android:src="@drawable/ic_info_outline" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:text="As perguntas abaixo refletem a arquitetura, regras de reserva e políticas de segurança documentadas no projeto."
+                    android:textColor="@color/unifor_primary_brand"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- FAQ 1: Reserva -->
+            <LinearLayout
+                android:id="@+id/cardFaq1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Como funciona a reserva de projetores?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq1"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="As reservas são vinculadas ao professor identificado e ao projetor selecionado (código patrimonial, ex.: PAT-001) para a data e intervalo de horário definidos. O sistema valida automaticamente e recusa reservas em caso de conflito de horário no mesmo projetor e dia."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 2: Biometria -->
+            <LinearLayout
+                android:id="@+id/cardFaq2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Como é realizada a identificação biométrica?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq2"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="A identificação biométrica utiliza o leitor Hamster DX (NITGEN FDU06) conectado via porta USB OTG. O terminal realiza a captura com o SDK proprietário da Nitgen e compara a digital contra o banco biométrico cadastrado no próprio aparelho."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 3: LGPD e Segurança -->
+            <LinearLayout
+                android:id="@+id/cardFaq3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Meus dados biométricos vão para o Google Sheets ou internet?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq3"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq3"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Não. Em conformidade estrita com a LGPD, o template da digital fica armazenado exclusivamente no BiometricDatabase (cifrado no aparelho). A planilha e os servidores recebem apenas o identificador numérico (professorId) para vincular à reserva, sem nenhum dado biométrico."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 4: Tags NFC -->
+            <LinearLayout
+                android:id="@+id/cardFaq4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Como funciona a identificação por tag NFC?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq4"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq4"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="O terminal permite leitura e gravação de tags NFC por aproximação no sensor traseiro do aparelho. As tags podem ser associadas a crachás institucionais ou chaveiros para agilizar o login ou identificação sem biometria."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 5: Conexão USB -->
+            <LinearLayout
+                android:id="@+id/cardFaq5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="O que fazer se o leitor Hamster DX não for reconhecido?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq5"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq5"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Verifique se o adaptador OTG está bem encaixado. Em seguida, acesse o módulo 'Conexão USB' na tela inicial para verificar se o Android detectou o dispositivo (ID 0a86:0100) e conceda a permissão necessária de acesso ao hardware."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 6: Reservas canceladas -->
+            <LinearLayout
+                android:id="@+id/cardFaq6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="As reservas canceladas somem do histórico?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq6"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq6"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Não. No sistema do CCT, nenhuma linha da aba 'reservas' é apagada. Quando uma reserva é cancelada, seu status muda de ATIVA para CANCELADA e o horário de cancelamento é registrado para preservação total do histórico institucional."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"
+                android:gravity="center"
+                android:text="@string/unifor_rodape"
+                android:textColor="@color/unifor_text_secondary"
+                android:textSize="11.5sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

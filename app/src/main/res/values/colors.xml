@@ -27,4 +27,15 @@
     <color name="unifor_header_subtext">#B8D2E8</color>
     <color name="unifor_chevron">#8EA6BF</color>
     <color name="unifor_ripple">#1E004B87</color>
+
+    <!-- Navegação e Status Unifor Mobile -->
+    <color name="unifor_nav_active">#004B87</color>
+    <color name="unifor_nav_inactive">#7B93AB</color>
+    <color name="unifor_status_active">#059669</color>
+    <color name="unifor_status_active_bg">#E6F7F0</color>
+    <color name="unifor_status_pending">#D97706</color>
+    <color name="unifor_status_pending_bg">#FFFBEB</color>
+    <color name="unifor_status_pending_text">#92400E</color>
+    <color name="unifor_status_error">#DC2626</color>
+    <color name="unifor_status_error_bg">#FEF2F2</color>
 </resources>

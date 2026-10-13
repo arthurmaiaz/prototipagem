@@ -78,6 +78,21 @@
             android:name=".ui.TesteUsbActivity"
             android:exported="true"
             android:label="Teste USB" />
+
+        <activity
+            android:name=".ui.PerfilActivity"
+            android:exported="false"
+            android:label="Meu Perfil" />
+
+        <activity
+            android:name=".ui.FaqActivity"
+            android:exported="false"
+            android:label="Perguntas Frequentes" />
+
+        <activity
+            android:name=".ui.AssistenteActivity"
+            android:exported="false"
+            android:label="Assistente Virtual" />
     </application>
 
 </manifest>

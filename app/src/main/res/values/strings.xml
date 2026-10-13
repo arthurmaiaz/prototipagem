@@ -28,4 +28,68 @@
     <string name="menu_biometria_fake_desc">Simulação de validação biométrica</string>
 
     <string name="unifor_rodape">Universidade de Fortaleza • CCT</string>
+
+    <!-- Barra de Navegação Inferior (Estilo Unifor Mobile) -->
+    <string name="nav_inicio">Início</string>
+    <string name="nav_torpedos">Torpedos</string>
+    <string name="nav_menu">Menu</string>
+
+    <!-- Torpedos (Suporte) -->
+    <string name="torpedos_titulo">Torpedos — Suporte</string>
+    <string name="torpedos_subtitulo">Comunicação direta com o suporte técnico do CCT</string>
+    <string name="torpedos_tag">SUPORTE HUMANO</string>
+    <string name="torpedos_canal_label">Canal de Destino</string>
+    <string name="torpedos_canal_valor">Suporte Técnico CCT • Equipamentos e Salas</string>
+    <string name="torpedos_remetente_label">Solicitante Identificado</string>
+    <string name="torpedos_aviso_titulo">Canal Institucional em Integração</string>
+    <string name="torpedos_aviso_desc">O serviço de envio direto de mensagens depende de integração com a central de suporte institucional da Unifor. O envio real requer ativação no backend.</string>
+    <string name="torpedos_campo_mensagem_label">Mensagem para o suporte</string>
+    <string name="torpedos_hint_mensagem">Descreva detalhadamente sua dúvida, solicitação ou incidente com o equipamento...</string>
+    <string name="torpedos_btn_enviar">Enviar mensagem</string>
+    <string name="torpedos_erro_vazio">Por favor, escreva uma mensagem antes de enviar.</string>
+    <string name="torpedos_aviso_pendente">⚠️ O envio direto não pôde ser completado: a integração com o serviço de suporte humano da Unifor está pendente de implementação no backend. Sua mensagem não foi transmitida.</string>
+
+    <!-- Menu Principal -->
+    <string name="menu_titulo">Menu e Recursos</string>
+    <string name="menu_subtitulo">Acesso ao perfil, ajuda e suporte</string>
+    <string name="menu_secao_opcoes">RECURSOS E ATENDIMENTO</string>
+    <string name="menu_opcao_perfil">Meu perfil</string>
+    <string name="menu_opcao_perfil_desc">Nome, matrícula e dados cadastrados no CCT</string>
+    <string name="menu_opcao_faq">Perguntas frequentes</string>
+    <string name="menu_opcao_faq_desc">Orientações de uso, biometria e equipamentos</string>
+    <string name="menu_opcao_assistente">Assistente virtual</string>
+    <string name="menu_opcao_assistente_desc">Orientações automatizadas e ajuda interativa</string>
+    <string name="menu_secao_info">INFORMAÇÕES DO TERMINAL</string>
+    <string name="menu_info_versao">Terminal de Reservas CCT • v1.0</string>
+    <string name="menu_info_seguranca">Proteção de dados biométricos conforme LGPD</string>
+
+    <!-- Meu Perfil -->
+    <string name="perfil_titulo">Meu Perfil</string>
+    <string name="perfil_subtitulo">Informações cadastrais institucionais</string>
+    <string name="perfil_alterar_foto">Alterar foto</string>
+    <string name="perfil_alterar_foto_aviso">A alteração de foto de perfil institucional depende de integração com o Unifor Online / Unifor Mobile e estará disponível em atualização futura.</string>
+    <string name="perfil_campo_nome">Nome cadastrado</string>
+    <string name="perfil_campo_matricula">Matrícula institucional</string>
+    <string name="perfil_campo_curso">Curso / Vinculação institucional</string>
+    <string name="perfil_curso_cct">CCT • Centro de Ciências Tecnológicas</string>
+    <string name="perfil_campo_situacao">Situação no terminal</string>
+    <string name="perfil_situacao_ativo">Ativo no cadastro de reservas</string>
+    <string name="perfil_situacao_inativo">Inativo no cadastro de reservas</string>
+    <string name="perfil_btn_conferir">Conferir dados no servidor</string>
+    <string name="perfil_conferido_sucesso">Dados cadastrais conferidos e sincronizados com sucesso.</string>
+    <string name="perfil_aviso_imutavel">Os dados institucionais são provenientes da base do CCT. Não é permitido alterar dados institucionais sem validação administrativa.</string>
+
+    <!-- Perguntas Frequentes -->
+    <string name="faq_titulo">Perguntas Frequentes</string>
+    <string name="faq_subtitulo">Respostas para dúvidas comuns sobre o uso do terminal</string>
+
+    <!-- Assistente Virtual -->
+    <string name="assistente_titulo">Assistente Virtual</string>
+    <string name="assistente_subtitulo">Canal de ajuda e orientações automatizadas</string>
+    <string name="assistente_status_prototipo">Protótipo • Integração Futura</string>
+    <string name="assistente_boas_vindas">Olá, Professor! Sou o Assistente Virtual do CCT — Unifor. Estou sendo preparado para auxiliar nas operações de reserva, diagnósticos de equipamentos e orientações de biometria.</string>
+    <string name="assistente_aviso_integracao">Esta funcionalidade está em fase de prototipagem de interface e depende da integração com os serviços cognitivos e de inteligência artificial da Unifor.</string>
+    <string name="assistente_sugestoes_titulo">Tópicos frequentes:</string>
+    <string name="assistente_hint_mensagem">Escreva uma pergunta para o assistente...</string>
+    <string name="assistente_envio_pendente">O assistente virtual interativo depende da integração com o serviço de IA da Unifor e estará operacional em breve.</string>
 </resources>
