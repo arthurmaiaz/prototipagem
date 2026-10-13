@@ -14,6 +14,14 @@ val localProperties = Properties().apply {
     }
 }
 
+// eNBioBSP SDK da Nitgen (leitor Hamster DX). É proprietário e não vai para o
+// repositório público: cada um copia o .aar para app/libs/ (ver app/libs/README.md).
+val sdkNitgen = file("libs/nbiobspjni-2.0.0.10.aar")
+if (!sdkNitgen.exists()) {
+    throw GradleException(
+        "SDK da Nitgen não encontrado em app/libs/nbiobspjni-2.0.0.10.aar. Veja app/libs/README.md.")
+}
+
 fun stringJava(valor: String): String =
     "\"" + valor.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -36,6 +44,8 @@ android {
             stringJava(localProperties.getProperty("appsScript.url", "")))
         buildConfigField("String", "APPS_SCRIPT_TOKEN",
             stringJava(localProperties.getProperty("appsScript.token", "")))
+        buildConfigField("String", "NITGEN_SERIAL",
+            stringJava(localProperties.getProperty("nitgen.serial", "")))
     }
 
     buildTypes {
@@ -74,4 +84,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation(files(sdkNitgen))
 }
