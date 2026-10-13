@@ -17,3 +17,5 @@ local.properties
 # Sistema operacional
 .DS_Store
 Thumbs.db
+# SDK da Nitgen (proprietário): não vai para o repositório público. Ver app/libs/README.md
+app/libs/*.aar

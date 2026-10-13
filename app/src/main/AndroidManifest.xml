@@ -10,10 +10,12 @@
         android:name="android.hardware.nfc"
         android:required="false" />
 
-    <!-- Opcional: o leitor biométrico (Hamster DX) entra pelo USB OTG. -->
+    <!-- Opcional: o leitor biométrico (Hamster DX) entra pelo USB OTG.
+         O SDK da Nitgen declara como obrigatório; o tools:replace mantém opcional. -->
     <uses-feature
         android:name="android.hardware.usb.host"
-        android:required="false" />
+        android:required="false"
+        tools:replace="android:required" />
 
     <application
         android:allowBackup="true"
@@ -52,6 +54,11 @@
             android:name=".ui.TesteReservaActivity"
             android:exported="true"
             android:label="Teste Reserva" />
+
+        <activity
+            android:name=".ui.TesteCapturaActivity"
+            android:exported="true"
+            android:label="Teste Captura" />
 
         <activity
             android:name=".ui.TesteUsbActivity"
