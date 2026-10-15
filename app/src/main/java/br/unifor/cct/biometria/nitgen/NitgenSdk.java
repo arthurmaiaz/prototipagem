@@ -9,7 +9,6 @@ import android.util.Log;
 
 import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
 
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,6 +23,9 @@ import java.util.concurrent.Executors;
  * executar" são síncronos e não podem ser chamados de outro lugar.
  *
  * Os templates circulam como texto (TextFIR, base64 gerado pelo SDK).
+ * A busca de quem colocou o dedo não usa o IndexSearch do SDK: o
+ * BiometricDatabase percorre o array de digitais e chama mesmaDigital
+ * para cada posição.
  * A imagem da digital nunca sai desta classe, a não ser para o Listener
  * mostrar na tela durante a captura.
  *
@@ -50,21 +52,12 @@ public class NitgenSdk {
     /** Mínimo entre as leituras do cadastro, mesmo que o leitor diga que não há dedo. */
     private static final int INTERVALO_MINIMO_MS = 700;
     /**
-     * O IndexSearch só aceita uma amostra por id (o segundo AddFIR com o mesmo
-     * id devolve DUPLICATED_ID). Por isso cada amostra entra no índice com um
-     * id próprio: professorId * AMOSTRAS_POR_ID + número da amostra
-     * (professor 1 vira 101 e 102), e a busca converte de volta.
-     */
-    private static final int AMOSTRAS_POR_ID = 100;
-    /**
-     * Nível de segurança da busca 1:N e da comparação 1:1 (escala de 1 a 9).
+     * Nível de segurança da comparação 1:1 (escala de 1 a 9).
      * Com NORMAL (5), o indicador de uma pessoa foi reconhecido como o de
      * outra nos testes. Confundir professores é pior do que pedir para
      * colocar o dedo de novo, então fica em HIGH.
      */
     private static final int NIVEL_SEGURANCA = NBioBSPJNI.FIR_SECURITY_LEVEL.HIGH;
-    /** Tempo máximo da busca 1:N, em ms (o exemplo da Nitgen usa 2000). */
-    private static final int TIMEOUT_BUSCA_MS = 5_000;
     private static final String TAG = "NitgenSdk";
 
     /** Eventos do leitor, sempre entregues na thread principal. */
@@ -88,7 +81,6 @@ public class NitgenSdk {
     }
 
     private final NBioBSPJNI bsp;
-    private final NBioBSPJNI.IndexSearch indice;
     private final ExecutorService thread = Executors.newSingleThreadExecutor();
     private final Handler principal = new Handler(Looper.getMainLooper());
 
@@ -111,7 +103,6 @@ public class NitgenSdk {
             bsp.dispose();
             throw new NitgenException("O SDK do leitor não iniciou (" + erro + ").");
         }
-        indice = bsp.new IndexSearch();
         configurar();
     }
 
@@ -151,7 +142,6 @@ public class NitgenSdk {
         bsp.CaptureCancel();
         thread.execute(() -> {
             long inicio = SystemClock.elapsedRealtime();
-            indice.dispose();
             bsp.releaseDevice();
             bsp.dispose();
             Log.d(TAG, "SDK liberado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
@@ -184,8 +174,8 @@ public class NitgenSdk {
      * Captura uma digital e devolve o template em texto.
      *
      * @param finalidade NBioBSPJNI.FIR_PURPOSE: ENROLL para cadastrar e para
-     *                   buscar no índice (como no exemplo da Nitgen), VERIFY
-     *                   para a comparação 1:1
+     *                   identificar (comparada com as amostras do cadastro,
+     *                   que também são ENROLL), VERIFY para a comparação 1:1
      */
     public String capturar(int finalidade) throws NitgenException {
         return capturar(finalidade, 0);
@@ -283,56 +273,6 @@ public class NitgenSdk {
             throw new NitgenException("Falha ao comparar digitais (" + codigo(bsp.GetErrorCode()) + ").");
         }
         return igual;
-    }
-
-    /** Esvazia o índice de busca 1:N (só memória; o BiometricDatabase não muda). */
-    public void limparIndice() throws NitgenException {
-        int erro = indice.ClearDB();
-        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-            throw new NitgenException("Falha ao limpar o índice de digitais (" + codigo(erro) + ").");
-        }
-    }
-
-    /** Coloca (ou troca) a digital do professor no índice de busca, com todas as amostras. */
-    public void indexar(int professorId, List<String> amostras) throws NitgenException {
-        if (amostras.size() >= AMOSTRAS_POR_ID) {
-            throw new NitgenException("Amostras demais para o professor " + professorId + ".");
-        }
-        removerDoIndice(professorId);
-        for (int i = 0; i < amostras.size(); i++) {
-            int idNoIndice = professorId * AMOSTRAS_POR_ID + i + 1;
-            NBioBSPJNI.IndexSearch.SAMPLE_INFO info = indice.new SAMPLE_INFO();
-            int erro = indice.AddFIR(entrada(amostras.get(i)), idNoIndice, info);
-            Log.d(TAG, "AddFIR(" + idNoIndice + ") " + codigo(erro));
-            if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-                throw new NitgenException("Falha ao indexar a digital do professor "
-                        + professorId + " (" + codigo(erro) + ").");
-            }
-        }
-    }
-
-    public void removerDoIndice(int professorId) {
-        // RemoveUser devolve erro para ids que não estão no índice; nesse caso
-        // não há o que remover. Cobre todas as amostras possíveis do professor.
-        for (int i = 1; i < AMOSTRAS_POR_ID; i++) {
-            indice.RemoveUser(professorId * AMOSTRAS_POR_ID + i);
-        }
-    }
-
-    /** Busca 1:N. @return o professorId, ou null se a digital não estiver cadastrada. */
-    public Integer identificar(String template) throws NitgenException {
-        NBioBSPJNI.IndexSearch.FP_INFO info = indice.new FP_INFO();
-        // A versão sem timeout repassa -1 ao SDK; o exemplo da Nitgen sempre informa um.
-        int erro = indice.Identify(entrada(template), NIVEL_SEGURANCA, info, TIMEOUT_BUSCA_MS);
-        Log.d(TAG, "Identify " + codigo(erro) + ", ID=" + info.ID);
-        if (erro == NBioBSPJNI.ERROR.NBioAPIERROR_INDEXSEARCH_IDENTIFY_FAIL) {
-            return null;
-        }
-        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-            throw new NitgenException("Falha na busca da digital (" + codigo(erro) + ").");
-        }
-        // O SDK usa 0 para "nenhum"; os ids no índice começam em 101.
-        return info.ID == 0 ? null : info.ID / AMOSTRAS_POR_ID;
     }
 
     // ------------------------------------------------------------ internos

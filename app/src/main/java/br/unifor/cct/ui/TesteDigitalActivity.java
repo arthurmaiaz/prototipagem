@@ -54,7 +54,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private ProfessorRepository professores;
 
     private boolean ocupado;
-    private boolean indiceCarregado;
+    private boolean digitaisCarregadas;
     private boolean abertaPeloLeitor;
 
     private TextView tvEstado;
@@ -126,19 +126,19 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         }
         sdk.setListener(this);
         cadastro = new CadastroDigitalNitgen(sdk, banco);
-        NitgenMatcher matcher = new NitgenMatcher(sdk);
-        biometria = new BiometriaService(new HamsterDxReader(sdk), matcher);
+        biometria = new BiometriaService(new HamsterDxReader(sdk), new NitgenMatcher(sdk, banco));
 
         tvEstado.setText("SDK " + sdk.getVersao() + ". Carregando digitais...");
-        matcher.carregar(banco, new NitgenSdk.Resultado<Integer>() {
+        sdk.executar(banco::quantidade, new NitgenSdk.Resultado<Integer>() {
             @Override
             public void onSucesso(Integer quantidade) {
-                indiceCarregado = true;
+                digitaisCarregadas = true;
                 if (abertaPeloLeitor && !sdk.isConectado()) {
                     registrar("Leitor conectado: abrindo...");
                     sdk.abrir();
                 }
-                tvEstado.setText("SDK " + sdk.getVersao() + ". " + quantidade + " digital(is) cadastrada(s).");
+                tvEstado.setText("SDK " + sdk.getVersao() + ". " + quantidade + " de "
+                        + banco.capacidade() + " posições ocupadas.");
                 if (banco.houveFalhaAoCarregar()) {
                     registrar("Aviso: o arquivo de digitais não pôde ser lido e foi ignorado. "
                             + "As digitais precisam ser cadastradas de novo.");
@@ -159,7 +159,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())
-                && sdk != null && indiceCarregado && !sdk.isConectado()) {
+                && sdk != null && digitaisCarregadas && !sdk.isConectado()) {
             registrar("Leitor conectado: abrindo...");
             sdk.abrir();
         }
@@ -312,12 +312,12 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private void atualizarBotoes() {
         boolean iniciado = sdk != null;
         boolean conectado = iniciado && sdk.isConectado();
-        boolean pronto = conectado && indiceCarregado && !ocupado;
+        boolean pronto = conectado && digitaisCarregadas && !ocupado;
         btnAbrir.setText(conectado ? "Fechar leitor" : "Abrir leitor");
         btnAbrir.setEnabled(iniciado && !ocupado);
         btnCadastrar.setEnabled(pronto);
         btnIdentificar.setEnabled(pronto);
-        btnRemover.setEnabled(iniciado && indiceCarregado && !ocupado);
+        btnRemover.setEnabled(iniciado && digitaisCarregadas && !ocupado);
         btnCancelar.setEnabled(ocupado);
     }
 
