@@ -4,7 +4,6 @@ import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 
 import br.unifor.cct.biometria.BiometricDatabase;
 
@@ -17,7 +16,8 @@ import br.unifor.cct.biometria.BiometricDatabase;
  * amostras, o que deixa a busca mais tolerante à posição do dedo. Também
  * recusa uma digital que já está cadastrada para outro professor.
  *
- * Salva no BiometricDatabase (cifrado) e atualiza o índice de busca.
+ * Salva no BiometricDatabase (cifrado), na primeira posição livre do array
+ * (ou na posição que o professor já ocupava).
  * Todos os callbacks chegam na thread principal.
  */
 public class CadastroDigitalNitgen {
@@ -54,38 +54,40 @@ public class CadastroDigitalNitgen {
             if (!sdk.mesmaDigital(primeira, segunda)) {
                 throw new NitgenException("As duas leituras não conferem. Tente de novo, com o mesmo dedo.");
             }
+            // Percorre o array: a digital não pode ser de outro professor.
             for (String amostra : Arrays.asList(primeira, segunda)) {
-                Integer dono = sdk.identificar(amostra);
-                if (dono != null && dono != professorId) {
-                    throw new NitgenException("Essa digital já está cadastrada para o professor " + dono + ".");
+                for (int dono : banco.identificar(salva -> sdk.mesmaDigital(amostra, salva))) {
+                    if (dono != professorId) {
+                        throw new NitgenException("Essa digital já está cadastrada para o professor " + dono + ".");
+                    }
                 }
             }
 
-            List<String> amostras = Arrays.asList(primeira, segunda);
             boolean jaTinha = banco.buscar(professorId) != null;
+            int posicao;
             try {
-                banco.salvar(professorId, amostras);
+                posicao = banco.salvar(professorId, Arrays.asList(primeira, segunda));
+            } catch (IllegalStateException e) {
+                throw new NitgenException(e.getMessage());
             } catch (IOException e) {
                 throw new NitgenException("Falha ao salvar a digital no aparelho.");
             }
-            sdk.indexar(professorId, amostras);
-            return jaTinha
-                    ? "Digital do professor " + professorId + " atualizada (2 amostras)."
-                    : "Digital do professor " + professorId + " cadastrada (2 amostras).";
+            return "Digital do professor " + professorId
+                    + (jaTinha ? " atualizada" : " cadastrada")
+                    + " na posição " + posicao + " (2 amostras).";
         }, resultado(callback));
     }
 
     public void remover(int professorId, Callback callback) {
         sdk.executar(() -> {
-            boolean existia;
+            int posicao = banco.posicaoDo(professorId);
             try {
-                existia = banco.remover(professorId);
+                banco.remover(professorId);
             } catch (IOException e) {
                 throw new NitgenException("Falha ao apagar a digital do aparelho.");
             }
-            sdk.removerDoIndice(professorId);
-            return existia
-                    ? "Digital do professor " + professorId + " removida."
+            return posicao >= 0
+                    ? "Digital do professor " + professorId + " removida (posição " + posicao + " livre)."
                     : "O professor " + professorId + " não tinha digital cadastrada.";
         }, resultado(callback));
     }
