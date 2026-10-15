@@ -45,7 +45,9 @@ function carregar(abas, opcoes = {}) {
     console: { log() {}, error() {} },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
     PropertiesService: {
-      getScriptProperties: () => ({ getProperty: (k) => (k === 'TOKEN' ? opcoes.token ?? TOKEN : null) }),
+      getScriptProperties: () => ({
+        getProperty: (k) => (k === 'TOKEN' ? opcoes.token ?? TOKEN : (opcoes.propriedades || {})[k] ?? null),
+      }),
     },
     LockService: {
       getScriptLock: () => ({ tryLock: () => lockLivre, releaseLock() {} }),
@@ -54,7 +56,9 @@ function carregar(abas, opcoes = {}) {
       MimeType: { JSON: 'application/json' },
       createTextOutput: (t) => ({ texto: t, setMimeType() { return this; } }),
     },
+    UrlFetchApp: { fetch: (url, o) => opcoes.fetch(url, o) },
     Utilities: {
+      getUuid: () => 'uuid-de-teste',
       // Basta para os testes: a planilha falsa usa datas em UTC-3 fixo.
       formatDate: (d, _fuso, formato) => {
         const local = new Date(d.getTime() - 3 * 3600 * 1000);
@@ -67,13 +71,16 @@ function carregar(abas, opcoes = {}) {
     },
   };
   vm.createContext(contexto);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'), contexto);
+  for (const arquivo of ['Code.gs', 'TesteNfc.gs']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', arquivo), 'utf8'), contexto);
+  }
   return {
     ss,
     // Passa a resposta por JSON, como acontece no fio HTTP.
     pedir: (corpo) => JSON.parse(JSON.stringify(
         contexto.tratarPedido(typeof corpo === 'string' ? corpo : JSON.stringify(corpo)))),
     doPost: (e) => JSON.parse(contexto.doPost(e).texto),
+    contexto,
   };
 }
 
@@ -255,6 +262,54 @@ const testes = {
       data: '2026-09-22', inicio: '19:00', fim: '21:00' }) } });
     assert.deepStrictEqual(Object.keys(r).sort(), ['mensagem', 'reservaId', 'sucesso']);
     assert.strictEqual(app.doPost({}).mensagem, 'Requisição inválida.');
+  },
+
+  'testarLeituraNfc chama a API do celular e registra na aba leituras_nfc'() {
+    const abas = abasPadrao();
+    abas.leituras_nfc = [['registradoEm']];
+    let pedido;
+    const app = carregar(abas, {
+      propriedades: { NFC_API_URL: 'https://tunel.exemplo/', NFC_API_TOKEN: 'tok' },
+      fetch: (url, o) => {
+        pedido = { url, o };
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            success: true, valid: true, patrimony: 'PAT-001', tagId: '04A1',
+            texts: ['PAT-001'], urls: [], message: 'Projetor PAT-001 identificado.',
+            correlationId: 'uuid-de-teste',
+          }),
+        };
+      },
+    });
+    const r = app.contexto.testarLeituraNfc();
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(pedido.url, 'https://tunel.exemplo/v1/nfc/read');
+    assert.strictEqual(pedido.o.method, 'post');
+    assert.strictEqual(pedido.o.headers.Authorization, 'Bearer tok');
+    assert.strictEqual(pedido.o.muteHttpExceptions, true);
+    const linha = app.ss.sheets.leituras_nfc.dados[1];
+    assert.deepStrictEqual(linha.slice(1, 7), ['/v1/nfc/read', 200, 'PAT-001', true, '04A1', 'PAT-001']);
+  },
+
+  'erro HTTP da API também é registrado, sem exceção'() {
+    const abas = abasPadrao();
+    abas.leituras_nfc = [['registradoEm']];
+    const app = carregar(abas, {
+      propriedades: { NFC_API_URL: 'https://tunel.exemplo', NFC_API_TOKEN: 'tok' },
+      fetch: () => ({
+        getResponseCode: () => 408,
+        getContentText: () => '{"success":false,"message":"Nenhuma tag foi encostada em 30 s."}',
+      }),
+    });
+    const r = app.contexto.testarLeituraNfc();
+    assert.strictEqual(r.status, 408);
+    assert.strictEqual(app.ss.sheets.leituras_nfc.dados[1][8], 'Nenhuma tag foi encostada em 30 s.');
+  },
+
+  'sem NFC_API_URL avisa o que configurar'() {
+    const app = carregar(abasPadrao());
+    assert.throws(() => app.contexto.testarHealthNfc(), /NFC_API_URL/);
   },
 };
 

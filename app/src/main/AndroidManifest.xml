@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
 
+    <!-- API REST do NFC (ServicoApiNfc): serviço em primeiro plano com notificação. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Opcional: o app instala em aparelho sem NFC e usa o QR Code. -->
     <uses-feature
         android:name="android.hardware.nfc"
@@ -78,6 +83,16 @@
             android:name=".ui.TesteUsbActivity"
             android:exported="true"
             android:label="Teste USB" />
+
+        <!-- Servidor HTTP da API do NFC (porta 8787). -->
+        <service
+            android:name=".rest.ServicoApiNfc"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Servidor HTTP local que atende pedidos de leitura de tag NFC vindos da rede." />
+        </service>
 
         <activity
             android:name=".ui.PerfilActivity"

@@ -10,6 +10,7 @@ as reservas no Google Sheets.
 | `Code.gs` | O script: regras de reserva, leitura das abas e configuração. |
 | `appsscript.json` | Manifesto: fuso de Fortaleza, runtime V8, Web App aberto. |
 | `teste/teste.js` | Testes que rodam no Node com uma planilha falsa. |
+| `TesteNfc.gs` | Chamada de teste da API REST do NFC do celular (ver `docs/nfc/README.md`). |
 
 ## Abas da planilha
 
@@ -19,6 +20,7 @@ as reservas no Google Sheets.
 | `projetores` | `codigo` (ex.: `PAT-001`), `descricao`, `ativo` |
 | `reservas` | `id`, `professorId`, `projetorId`, `data`, `inicio`, `fim`, `status`, `criadaEm`, `canceladaEm` |
 | `config` | `chave`, `valor` (guarda `proximoReservaId`, que começa em 1000) |
+| `leituras_nfc` | Criada pelo `TesteNfc.gs`: uma linha por chamada à API do NFC. |
 
 - O `id` do professor precisa ser o mesmo usado no cadastro da biometria no terminal.
 - `status` é `ATIVA` ou `CANCELADA`. Nada é apagado: a aba `reservas` é o histórico.
