@@ -20,15 +20,18 @@ public class Reserva {
 
     /** null enquanto a reserva ainda não foi criada no servidor. */
     private final Integer id;
-    private final int professorId;
+    private final String professorEmail;
     private final String projetorCodigo;
     private final LocalDate data;
     private final LocalTime inicio;
     private final LocalTime fim;
     private final StatusReserva status;
 
-    public Reserva(Integer id, int professorId, String projetorCodigo,
+    public Reserva(Integer id, String professorEmail, String projetorCodigo,
                    LocalDate data, LocalTime inicio, LocalTime fim, StatusReserva status) {
+        if (!Professor.emailValido(professorEmail)) {
+            throw new IllegalArgumentException("E-mail do professor inválido: " + professorEmail);
+        }
         if (!Projetor.codigoValido(projetorCodigo)) {
             throw new IllegalArgumentException("Código de projetor inválido: " + projetorCodigo);
         }
@@ -39,7 +42,7 @@ public class Reserva {
             throw new IllegalArgumentException("O horário de fim deve ser depois do início.");
         }
         this.id = id;
-        this.professorId = professorId;
+        this.professorEmail = Professor.normalizarEmail(professorEmail);
         this.projetorCodigo = projetorCodigo;
         this.data = data;
         this.inicio = inicio;
@@ -52,10 +55,10 @@ public class Reserva {
      * no formato da API. Lança IllegalArgumentException se algum campo
      * estiver fora do formato.
      */
-    public static Reserva nova(int professorId, String projetorCodigo,
+    public static Reserva nova(String professorEmail, String projetorCodigo,
                                String data, String inicio, String fim) {
         try {
-            return new Reserva(null, professorId, projetorCodigo,
+            return new Reserva(null, professorEmail, projetorCodigo,
                     LocalDate.parse(data, FORMATO_DATA),
                     LocalTime.parse(inicio, FORMATO_HORA),
                     LocalTime.parse(fim, FORMATO_HORA),
@@ -96,19 +99,19 @@ public class Reserva {
     }
 
     public Reserva comId(int novoId) {
-        return new Reserva(novoId, professorId, projetorCodigo, data, inicio, fim, status);
+        return new Reserva(novoId, professorEmail, projetorCodigo, data, inicio, fim, status);
     }
 
     public Reserva comStatus(StatusReserva novoStatus) {
-        return new Reserva(id, professorId, projetorCodigo, data, inicio, fim, novoStatus);
+        return new Reserva(id, professorEmail, projetorCodigo, data, inicio, fim, novoStatus);
     }
 
     public Integer getId() {
         return id;
     }
 
-    public int getProfessorId() {
-        return professorId;
+    public String getProfessorEmail() {
+        return professorEmail;
     }
 
     public String getProjetorCodigo() {
@@ -145,7 +148,7 @@ public class Reserva {
 
     @Override
     public String toString() {
-        return "Reserva{" + id + ", prof=" + professorId + ", " + projetorCodigo + ", "
+        return "Reserva{" + id + ", prof=" + professorEmail + ", " + projetorCodigo + ", "
                 + getDataTexto() + " " + getInicioTexto() + "-" + getFimTexto() + ", " + status + "}";
     }
 }

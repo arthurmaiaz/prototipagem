@@ -44,9 +44,9 @@ public class FluxoReserva {
         void identificarProfessor(BiometriaCallback callback);
     }
 
-    /** ProfessorRepository::buscarPorId serve aqui. */
+    /** ProfessorRepository::buscarPorEmail serve aqui. */
     public interface Professores {
-        Professor buscarPorId(int id);
+        Professor buscarPorEmail(String email);
     }
 
     public interface Listener {
@@ -123,12 +123,12 @@ public class FluxoReserva {
             @Override
             public void onSucesso(ResultadoBiometria resultado) {
                 if (minhaRodada != rodada) return;
-                if (!resultado.isSucesso() || resultado.getProfessorId() == null) {
+                if (!resultado.isSucesso() || resultado.getProfessorEmail() == null) {
                     publicar(estado.em(Etapa.DIGITAL).comMensagem(
                             "Digital não reconhecida. Tente de novo.", true));
                     return;
                 }
-                identificado(resultado.getProfessorId());
+                identificado(resultado.getProfessorEmail());
             }
 
             @Override
@@ -139,8 +139,8 @@ public class FluxoReserva {
         });
     }
 
-    private void identificado(int professorId) {
-        Professor professor = professores.buscarPorId(professorId);
+    private void identificado(String professorEmail) {
+        Professor professor = professores.buscarPorEmail(professorEmail);
         if (professor != null && !professor.isAtivo()) {
             publicar(estado.em(Etapa.DIGITAL).comMensagem(
                     professor.getNome() + " está inativo. Procure a coordenação.", true));
@@ -148,9 +148,10 @@ public class FluxoReserva {
         }
         // Professor fora do cadastro local (não sincronizado) segue mesmo
         // assim: quem decide é o Apps Script.
-        Estado novo = estado.comProfessor(professorId, professor == null ? null : professor.getNome());
+        Estado novo = estado.comProfessor(Professor.normalizarEmail(professorEmail),
+                professor == null ? null : professor.getNome());
         publicar(novo.em(Etapa.PROJETOR).comMensagem(
-                "Olá, " + novo.nomeOuId() + ". Aproxime o celular da etiqueta do projetor.", false));
+                "Olá, " + novo.nomeOuEmail() + ". Aproxime o celular da etiqueta do projetor.", false));
     }
 
     // ----------------------------------------------------------- projetor
@@ -196,7 +197,7 @@ public class FluxoReserva {
         Estado comHorario = estado.comHorario(data, inicio, fim);
         Reserva reserva;
         try {
-            reserva = Reserva.nova(estado.professorId, estado.projetorCodigo, data, inicio, fim);
+            reserva = Reserva.nova(estado.professorEmail, estado.projetorCodigo, data, inicio, fim);
         } catch (IllegalArgumentException e) {
             publicar(comHorario.comMensagem(e.getMessage(), true));
             return;
@@ -207,7 +208,7 @@ public class FluxoReserva {
         }
         int minhaRodada = ++rodada;
         publicar(comHorario.em(Etapa.ENVIANDO).comMensagem("Enviando a reserva...", false));
-        api.criarReserva(reserva.getProfessorId(), reserva.getProjetorCodigo(),
+        api.criarReserva(reserva.getProfessorEmail(), reserva.getProjetorCodigo(),
                 reserva.getDataTexto(), reserva.getInicioTexto(), reserva.getFimTexto(),
                 resposta(minhaRodada, Etapa.HORARIO));
     }
@@ -263,7 +264,7 @@ public class FluxoReserva {
     public static final class Estado {
         public final Modo modo;
         public final Etapa etapa;
-        public final Integer professorId;
+        public final String professorEmail;
         public final String professorNome;
         public final String projetorCodigo;
         public final String data;
@@ -275,12 +276,12 @@ public class FluxoReserva {
         /** true se a mensagem é de erro (mostrar em destaque). */
         public final boolean erro;
 
-        private Estado(Modo modo, Etapa etapa, Integer professorId, String professorNome,
+        private Estado(Modo modo, Etapa etapa, String professorEmail, String professorNome,
                        String projetorCodigo, String data, String inicio, String fim,
                        Integer reservaId, String mensagem, boolean erro) {
             this.modo = modo;
             this.etapa = etapa;
-            this.professorId = professorId;
+            this.professorEmail = professorEmail;
             this.professorNome = professorNome;
             this.projetorCodigo = projetorCodigo;
             this.data = data;
@@ -300,50 +301,50 @@ public class FluxoReserva {
                     "Toque em ler digital e coloque o dedo no leitor.", false);
         }
 
-        /** Nome do professor, ou "professor 3" se ele não estiver no cadastro local. */
-        public String nomeOuId() {
+        /** Nome do professor, ou o e-mail se ele não estiver no cadastro local. */
+        public String nomeOuEmail() {
             if (professorNome != null) return professorNome;
-            return professorId == null ? "" : "professor " + professorId;
+            return professorEmail == null ? "" : professorEmail;
         }
 
         Estado em(Etapa nova) {
-            return new Estado(modo, nova, professorId, professorNome, projetorCodigo,
+            return new Estado(modo, nova, professorEmail, professorNome, projetorCodigo,
                     data, inicio, fim, reservaId, mensagem, erro);
         }
 
         Estado comMensagem(String texto, boolean deErro) {
-            return new Estado(modo, etapa, professorId, professorNome, projetorCodigo,
+            return new Estado(modo, etapa, professorEmail, professorNome, projetorCodigo,
                     data, inicio, fim, reservaId, texto, deErro);
         }
 
-        Estado comProfessor(int id, String nome) {
-            return new Estado(modo, etapa, id, nome, projetorCodigo,
+        Estado comProfessor(String email, String nome) {
+            return new Estado(modo, etapa, email, nome, projetorCodigo,
                     data, inicio, fim, reservaId, mensagem, erro);
         }
 
         Estado comProjetor(String codigo) {
-            return new Estado(modo, etapa, professorId, professorNome, codigo,
+            return new Estado(modo, etapa, professorEmail, professorNome, codigo,
                     data, inicio, fim, reservaId, mensagem, erro);
         }
 
         Estado semProjetor() {
-            return new Estado(modo, etapa, professorId, professorNome, null,
+            return new Estado(modo, etapa, professorEmail, professorNome, null,
                     null, null, null, reservaId, mensagem, erro);
         }
 
         Estado comHorario(String novaData, String novoInicio, String novoFim) {
-            return new Estado(modo, etapa, professorId, professorNome, projetorCodigo,
+            return new Estado(modo, etapa, professorEmail, professorNome, projetorCodigo,
                     novaData, novoInicio, novoFim, reservaId, mensagem, erro);
         }
 
         Estado comReservaId(Integer id) {
-            return new Estado(modo, etapa, professorId, professorNome, projetorCodigo,
+            return new Estado(modo, etapa, professorEmail, professorNome, projetorCodigo,
                     data, inicio, fim, id, mensagem, erro);
         }
 
         @Override
         public String toString() {
-            return "Estado{" + modo + " " + etapa + ", prof=" + professorId + ", " + projetorCodigo
+            return "Estado{" + modo + " " + etapa + ", prof=" + professorEmail + ", " + projetorCodigo
                     + ", " + data + " " + inicio + "-" + fim + ", reserva=" + reservaId
                     + (erro ? ", ERRO: " : ", ") + mensagem + "}";
         }

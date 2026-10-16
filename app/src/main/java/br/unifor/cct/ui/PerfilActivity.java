@@ -14,6 +14,7 @@ import java.util.List;
 import br.unifor.cct.R;
 import br.unifor.cct.api.ProfessoresCallback;
 import br.unifor.cct.api.ReservaApiFactory;
+import br.unifor.cct.biometria.FakeFingerprintMatcher;
 import br.unifor.cct.model.Professor;
 import br.unifor.cct.storage.ProfessorRepository;
 
@@ -102,7 +103,7 @@ public class PerfilActivity extends Activity {
             return lista.get(0);
         }
         // Retorna o professor institucional de teste padronizado no projeto
-        return new Professor(1, "Professor Teste", "0001", true);
+        return new Professor(FakeFingerprintMatcher.EMAIL_TESTE, "Professor Teste", "0001", true);
     }
 
     private void conferirDadosNoServidor() {

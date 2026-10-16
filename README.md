@@ -13,15 +13,30 @@ reservas ficam no Google Sheets, por um Web App do Apps Script.
 
 ## Biometria
 
-As digitais ficam só no aparelho, cifradas, num **array de posições**
-(`BiometricDatabase`, 100 posições):
+O professor é identificado pelo **e-mail** em todo o sistema: na aba
+`professores` da planilha, nas reservas, no banco de digitais e nas telas.
+Maiúsculas e espaços nas pontas não contam.
 
-- **Cadastro:** percorre o array até a primeira posição livre e grava ali as
-  duas amostras do dedo. Se o professor já tinha digital, ela é trocada na
-  mesma posição.
-- **Identificação:** percorre o array e compara a digital lida com cada
-  posição ocupada (`VerifyMatch` 1:1 do SDK). Se conferir com mais de um
-  professor, ninguém é identificado e o app pede o dedo de novo.
+As digitais ficam só no aparelho, cifradas, em **2 arrays de 300 posições**
+(`BiometricDatabase`, 600 professores):
+
+- **Cadastro:** o professor informa o e-mail. As duas amostras do dedo vão
+  para a primeira posição livre do array com menos digitais, para os dois
+  ficarem do mesmo tamanho. Se o professor já tinha digital, ela é trocada
+  na mesma posição.
+- **Identificação:** os dois arrays são percorridos **ao mesmo tempo**, cada
+  um numa thread com a sua própria instância do SDK, comparando a digital
+  lida com cada posição ocupada (`VerifyMatch` 1:1). O tempo fica perto do
+  de um array só. Se a digital conferir com mais de um professor, ninguém é
+  identificado e o app pede o dedo de novo.
+- **Conferência do paralelo:** o SDK é beta e pode não aceitar mais de uma
+  instância. Na primeira identificação com digitais cadastradas, o
+  `NitgenMatcher` compara as mesmas amostras em todas as instâncias ao mesmo
+  tempo. Se algum resultado for diferente do da instância principal, ou se
+  a instância extra não abrir, a busca fica sequencial: mais lenta, mas
+  certa. A tela de digitais mostra qual modo está em uso.
+- **Digitais antigas:** as cadastradas antes do e-mail (com id numérico) são
+  descartadas ao abrir o app e precisam ser cadastradas de novo.
 - **Quem cadastra:** cadastrar e remover digitais exige o **PIN da
   coordenação** (`admin/PinAdministrador`), de 4 a 6 dígitos. Identificar
   não pede PIN.

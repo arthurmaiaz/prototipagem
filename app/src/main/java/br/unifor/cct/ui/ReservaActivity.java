@@ -103,7 +103,7 @@ public class ReservaActivity extends Activity implements NitgenSdk.Listener {
         BiometriaService biometria = iniciarBiometria();
         fluxo = new FluxoReserva(
                 biometria == null ? this::semLeitor : biometria::identificarProfessor,
-                professores::buscarPorId, ReservaApiFactory.obter(), Clock.systemDefaultZone());
+                professores::buscarPorEmail, ReservaApiFactory.obter(), Clock.systemDefaultZone());
 
         nfc = new NfcService(this);
         nfc.setLeituraCallback(fluxo::projetorLido);
@@ -252,7 +252,7 @@ public class ReservaActivity extends Activity implements NitgenSdk.Listener {
         btnRecomecar.setText(e.etapa == Etapa.CONCLUIDA ? "Concluir" : "Começar de novo");
 
         handler.removeCallbacks(recomecar);
-        boolean noComeco = e.professorId == null && e.projetorCodigo == null
+        boolean noComeco = e.professorEmail == null && e.projetorCodigo == null
                 && (e.etapa == Etapa.DIGITAL || e.etapa == Etapa.PROJETOR);
         if (e.etapa == Etapa.CONCLUIDA) {
             handler.postDelayed(recomecar, VOLTA_AUTOMATICA_MS);
@@ -281,7 +281,7 @@ public class ReservaActivity extends Activity implements NitgenSdk.Listener {
 
     private static String resumo(Estado e) {
         StringBuilder s = new StringBuilder();
-        if (e.professorId != null) s.append("Professor: ").append(e.nomeOuId()).append('\n');
+        if (e.professorEmail != null) s.append("Professor: ").append(e.nomeOuEmail()).append('\n');
         if (e.projetorCodigo != null) s.append("Projetor: ").append(e.projetorCodigo).append('\n');
         if (e.etapa == Etapa.CONCLUIDA && e.modo == Modo.RESERVAR) {
             s.append("Horário: ").append(e.data).append(", ").append(e.inicio)

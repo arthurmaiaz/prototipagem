@@ -18,13 +18,13 @@ import br.unifor.cct.api.ProfessoresCallback;
 import br.unifor.cct.model.Professor;
 
 /**
- * Cadastro local dos professores do terminal (id, nome, matrícula, ativo).
+ * Cadastro local dos professores do terminal (e-mail, nome, matrícula, ativo).
  *
  * Serve para a UI mostrar o nome de quem foi identificado pela biometria
  * sem precisar ir ao servidor. A fonte oficial é a aba "professores" do
  * Google Sheets: use sincronizar() para baixar a lista de lá.
  *
- * Nada de biometria aqui: o vínculo digital -> professorId fica no
+ * Nada de biometria aqui: o vínculo digital -> e-mail do professor fica no
  * BiometricDatabase. Os dados ficam em SharedPreferences privado do app
  * (MODE_PRIVATE), num único JSON.
  *
@@ -34,21 +34,22 @@ import br.unifor.cct.model.Professor;
 public class ProfessorRepository {
 
     private static final String PREFS = "professores";
-    private static final String CHAVE_LISTA = "lista";
+    /** "lista" guardava o formato antigo, com id numérico: é ignorada. */
+    private static final String CHAVE_LISTA = "lista_por_email";
 
     private final SharedPreferences prefs;
 
     /** Cache em memória, carregado do disco no primeiro acesso. */
-    private Map<Integer, Professor> cache;
+    private Map<String, Professor> cache;
 
     public ProfessorRepository(Context context) {
         this.prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    /** @return o professor, ou null se o id não estiver cadastrado. */
-    public synchronized Professor buscarPorId(int id) {
-        return carregar().get(id);
+    /** @return o professor, ou null se o e-mail não estiver cadastrado. */
+    public synchronized Professor buscarPorEmail(String email) {
+        return carregar().get(Professor.normalizarEmail(email));
     }
 
     /** @return todos os professores, na ordem em que foram cadastrados. */
@@ -56,15 +57,15 @@ public class ProfessorRepository {
         return Collections.unmodifiableList(new ArrayList<>(carregar().values()));
     }
 
-    /** Insere ou atualiza (pelo id). */
+    /** Insere ou atualiza (pelo e-mail). */
     public synchronized void salvar(Professor professor) {
-        carregar().put(professor.getId(), professor);
+        carregar().put(professor.getEmail(), professor);
         persistir();
     }
 
-    /** @return true se havia um professor com esse id. */
-    public synchronized boolean remover(int id) {
-        boolean removido = carregar().remove(id) != null;
+    /** @return true se havia um professor com esse e-mail. */
+    public synchronized boolean remover(String email) {
+        boolean removido = carregar().remove(Professor.normalizarEmail(email)) != null;
         if (removido) {
             persistir();
         }
@@ -73,9 +74,9 @@ public class ProfessorRepository {
 
     /** Troca o cadastro inteiro, ex.: após baixar a lista do Apps Script. */
     public synchronized void substituirTodos(List<Professor> professores) {
-        Map<Integer, Professor> novo = new LinkedHashMap<>();
+        Map<String, Professor> novo = new LinkedHashMap<>();
         for (Professor p : professores) {
-            novo.put(p.getId(), p);
+            novo.put(p.getEmail(), p);
         }
         cache = novo;
         persistir();
@@ -101,7 +102,7 @@ public class ProfessorRepository {
         });
     }
 
-    private Map<Integer, Professor> carregar() {
+    private Map<String, Professor> carregar() {
         if (cache != null) {
             return cache;
         }
@@ -114,7 +115,7 @@ public class ProfessorRepository {
             JSONArray array = new JSONArray(json);
             for (int i = 0; i < array.length(); i++) {
                 Professor p = deJson(array.getJSONObject(i));
-                cache.put(p.getId(), p);
+                cache.put(p.getEmail(), p);
             }
         } catch (JSONException | IllegalArgumentException e) {
             // Dado corrompido: começa vazio em vez de derrubar o app.
@@ -138,7 +139,7 @@ public class ProfessorRepository {
 
     private static JSONObject paraJson(Professor p) throws JSONException {
         return new JSONObject()
-                .put("id", p.getId())
+                .put("email", p.getEmail())
                 .put("nome", p.getNome())
                 .put("matricula", p.getMatricula() == null ? JSONObject.NULL : p.getMatricula())
                 .put("ativo", p.isAtivo());
@@ -146,7 +147,7 @@ public class ProfessorRepository {
 
     private static Professor deJson(JSONObject o) throws JSONException {
         return new Professor(
-                o.getInt("id"),
+                o.getString("email"),
                 o.getString("nome"),
                 o.isNull("matricula") ? null : o.getString("matricula"),
                 o.optBoolean("ativo", true));

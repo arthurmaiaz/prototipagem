@@ -19,7 +19,7 @@ public class BiometriaService {
                     public void onResultado(IdentificationResult resultado) {
                         if (resultado.isEncontrado()) {
                             callback.onSucesso(new ResultadoBiometria(
-                                    true, resultado.getProfessorId(),
+                                    true, resultado.getProfessorEmail(),
                                     "Professor identificado com sucesso."));
                         } else {
                             callback.onSucesso(new ResultadoBiometria(
