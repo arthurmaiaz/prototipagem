@@ -45,6 +45,7 @@ NTAG213/215/216 ou MIFARE Ultralight.
 | `app/.../rest/PonteNfc.java` | Leva a leitura da tela até o pedido HTTP que está esperando. |
 | `docs/nfc/openapi.yaml` | Swagger (OpenAPI 3) da API. |
 | `scripts/test-api.ps1` | Script de teste do professor (cópia sem alterações). |
+| `scripts/test-api.sh` | O mesmo teste em bash, para Linux e macOS (mesmos parâmetros). |
 | `apps-script/TesteNfc.gs` | Chamada de teste a partir do Google Apps Script. |
 
 ## Como executar
@@ -87,7 +88,21 @@ Set-Content .\appnfc-test-token.txt "<token copiado da tela>"
 
 O `appnfc-test-token.txt` está no `.gitignore`.
 
-### Testar com curl (Linux / macOS)
+### Testar no Linux / macOS
+
+O `test-api.ps1` não roda no Linux nem com o PowerShell instalado, porque usa
+o `Test-NetConnection`, que só existe no Windows. O `scripts/test-api.sh` faz
+as mesmas chamadas, com os mesmos parâmetros e o mesmo arquivo de token:
+
+```bash
+echo '<token copiado da tela>' > appnfc-test-token.txt
+./scripts/test-api.sh -Ip 192.168.0.104              # só /health
+./scripts/test-api.sh -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 40 s
+./scripts/test-api.sh -Ip 192.168.0.104 -Logs -Limit 10
+```
+
+Precisa de `curl`; se o `jq` estiver instalado, o JSON sai formatado. Sem o
+script, com curl direto:
 
 ```bash
 IP=192.168.0.104; TOKEN='<token>'
