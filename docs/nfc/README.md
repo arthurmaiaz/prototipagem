@@ -177,9 +177,14 @@ No projeto do Apps Script:
   paginação da auditoria e pedido HTTP malformado.
 - Testes do Apps Script (`node apps-script/teste/teste.js`): chamada da API
   e registro na aba `leituras_nfc`, inclusive em caso de erro HTTP.
-- Prints do celular e do PowerShell: adicionar em `docs/nfc/evidencias/`
-  depois do teste com a tag real (tela de leitura, tela com a API ligada,
-  saída do `test-api.ps1 -ReadTag` e aba `leituras_nfc`).
+- **Teste no celular, em 16/10/2026** (Samsung SM-M546B e tag real PAT-001,
+  com o PC no Linux rodando o `test-api.sh`):
+  - `evidencias/2026-10-16-readtag.txt`: health e leitura da tag
+    (`patrimony: PAT-001`, `valid: true`).
+  - `evidencias/2026-10-16-timeout-e-logs.txt`: o 408 depois de 30 s sem
+    tag e o `/v1/audit/logs` com as chamadas registradas.
+- Ainda faltam os prints da tela do celular com a API ligada e a chamada
+  pelo Apps Script (`TesteNfc.gs`, aba `leituras_nfc`).
 
 ## Limitações
 

@@ -1,0 +1,161 @@
+# Teste anterior, no mesmo dia: nenhuma tag foi encostada, e a API respondeu 408 depois de 30 s.
+# Depois vem a consulta de /v1/audit/logs, com as chamadas registradas.
+
+Testando conectividade com http://192.168.1.83:8787...
+TCP OK
+Testando autenticação em /health...
+{
+  "status": "ok",
+  "service": "br.unifor.cct NFC API",
+  "version": "1.0",
+  "time": "2026-10-16T23:06:29.950709Z",
+  "nfcAvailable": true,
+  "nfcEnabled": true,
+  "nfcScreenOpen": true,
+  "writing": false,
+  "readPending": false,
+  "correlationId": "a8003535-0ad0-452f-9448-f3ba72955392"
+}
+Aproxime a tag NFC do celular agora...
+{
+  "success": false,
+  "message": "Nenhuma tag foi encostada em 30 s.",
+  "correlationId": "a8003535-0ad0-452f-9448-f3ba72955392"
+}
+Erro: /v1/nfc/read respondeu HTTP 408.
+Testando conectividade com http://192.168.1.83:8787...
+TCP OK
+Testando autenticação em /health...
+{
+  "status": "ok",
+  "service": "br.unifor.cct NFC API",
+  "version": "1.0",
+  "time": "2026-10-16T23:07:00.312431Z",
+  "nfcAvailable": true,
+  "nfcEnabled": true,
+  "nfcScreenOpen": true,
+  "writing": false,
+  "readPending": false,
+  "correlationId": "2e375eb5-47fb-4317-9f4a-af4200d4c879"
+}
+Consultando logs de auditoria (limit=10, offset=0)...
+{
+  "success": true,
+  "total": 14,
+  "limit": 10,
+  "offset": 0,
+  "items": [
+    {
+      "id": 14,
+      "timestamp": "2026-10-16T23:07:00.312539Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "2e375eb5-47fb-4317-9f4a-af4200d4c879",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 13,
+      "timestamp": "2026-10-16T23:07:00.182915Z",
+      "clientIp": "192.168.1.64",
+      "method": "POST",
+      "path": "/v1/nfc/read",
+      "status": 408,
+      "correlationId": "a8003535-0ad0-452f-9448-f3ba72955392",
+      "durationMs": 30003,
+      "patrimony": null
+    },
+    {
+      "id": 12,
+      "timestamp": "2026-10-16T23:06:29.950877Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "a8003535-0ad0-452f-9448-f3ba72955392",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 11,
+      "timestamp": "2026-10-16T23:06:28.826011Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "391dc2b5-d930-4dfe-b146-eba539432a54",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 10,
+      "timestamp": "2026-10-16T23:06:26.587789Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "77bff9bd-9743-4b75-a6d8-8b8ebe9d4e28",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 9,
+      "timestamp": "2026-10-16T23:06:24.024302Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "0aff585f-7494-4fa0-9098-acafc2bfd3ba",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 8,
+      "timestamp": "2026-10-16T23:06:21.760332Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "0f302cf2-df84-4be3-b240-1df67894ba63",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 7,
+      "timestamp": "2026-10-16T23:06:19.426925Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "d746a537-9427-481b-96e8-300c1ad8489a",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 6,
+      "timestamp": "2026-10-16T23:06:16.839368Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "3e54dfd4-16f3-42c0-87c4-f600c5286827",
+      "durationMs": 0,
+      "patrimony": null
+    },
+    {
+      "id": 5,
+      "timestamp": "2026-10-16T23:06:14.590658Z",
+      "clientIp": "192.168.1.64",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "correlationId": "afcc1bae-7f57-44f3-a755-c26ac9e1333e",
+      "durationMs": 1,
+      "patrimony": null
+    }
+  ],
+  "correlationId": "2e375eb5-47fb-4317-9f4a-af4200d4c879"
+}
+
