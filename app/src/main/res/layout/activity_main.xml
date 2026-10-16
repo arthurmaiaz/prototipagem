@@ -311,6 +311,66 @@
                             android:src="@drawable/ic_chevron_right" />
                     </LinearLayout>
 
+                    <!-- Ler QR Code (Identificação do Projetor pela Câmera) -->
+                    <LinearLayout
+                        android:id="@+id/cardLerQrCode"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        android:background="@drawable/bg_card_action"
+                        android:clickable="true"
+                        android:elevation="2dp"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="13dp"
+                        android:stateListAnimator="@animator/card_press_animator">
+
+                        <FrameLayout
+                            android:layout_width="46dp"
+                            android:layout_height="46dp"
+                            android:background="@drawable/bg_icon_badge">
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="@string/menu_ler_qr_code"
+                                android:src="@drawable/ic_qr_code" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/menu_ler_qr_code"
+                                android:textColor="@color/unifor_text_primary"
+                                android:textSize="15.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/menu_ler_qr_code_desc"
+                                android:textColor="@color/unifor_text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:contentDescription="Avançar"
+                            android:src="@drawable/ic_chevron_right" />
+                    </LinearLayout>
+
                     <!-- 4. Teste de captura -->
                     <LinearLayout
                         android:id="@+id/cardTesteCaptura"
@@ -1241,11 +1301,17 @@
     <LinearLayout
         android:id="@+id/bottomNavigationView"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
+        android:layout_height="wrap_content"
+        android:minHeight="58dp"
         android:background="@drawable/bg_bottom_nav"
+        android:clipToPadding="false"
         android:elevation="8dp"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="6dp">
 
         <!-- Acesso 1: Início -->
         <LinearLayout
@@ -1253,13 +1319,14 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:minHeight="48dp"
             android:clickable="true"
             android:focusable="true"
             android:foreground="?android:attr/selectableItemBackground"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
 
             <ImageView
                 android:id="@+id/ivTabInicio"
@@ -1285,13 +1352,14 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:minHeight="48dp"
             android:clickable="true"
             android:focusable="true"
             android:foreground="?android:attr/selectableItemBackground"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
 
             <ImageView
                 android:id="@+id/ivTabTorpedos"
@@ -1316,13 +1384,14 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:minHeight="48dp"
             android:clickable="true"
             android:focusable="true"
             android:foreground="?android:attr/selectableItemBackground"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
 
             <ImageView
                 android:id="@+id/ivTabMenu"

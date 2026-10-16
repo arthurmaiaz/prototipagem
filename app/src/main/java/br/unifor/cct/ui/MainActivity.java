@@ -14,6 +14,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import java.util.List;
 
 import br.unifor.cct.R;
@@ -110,6 +114,7 @@ public class MainActivity extends Activity {
         View cardDigital = findViewById(R.id.cardCadastrarDigital);
         View cardReserva = findViewById(R.id.cardReservar);
         View cardNfc = findViewById(R.id.cardCadastrarTagNfc);
+        View cardQrCode = findViewById(R.id.cardLerQrCode);
         View cardCaptura = findViewById(R.id.cardTesteCaptura);
         View cardUsb = findViewById(R.id.cardConexaoUsb);
         View cardBiometriaFake = findViewById(R.id.cardBiometriaFake);
@@ -117,11 +122,12 @@ public class MainActivity extends Activity {
         vincularAcesso(cardDigital, TesteDigitalActivity.class);
         vincularAcesso(cardReserva, TesteReservaActivity.class);
         vincularAcesso(cardNfc, TesteNfcActivity.class);
+        vincularAcesso(cardQrCode, LerQrCodeActivity.class);
         vincularAcesso(cardCaptura, TesteCapturaActivity.class);
         vincularAcesso(cardUsb, TesteUsbActivity.class);
         vincularAcesso(cardBiometriaFake, TesteBiometriaActivity.class);
 
-        animarEntrada(cardDigital, cardReserva, cardNfc, cardCaptura, cardUsb, cardBiometriaFake);
+        animarEntrada(cardDigital, cardReserva, cardNfc, cardQrCode, cardCaptura, cardUsb, cardBiometriaFake);
     }
 
     /**
@@ -224,6 +230,22 @@ public class MainActivity extends Activity {
         }
         if (tabMenu != null) {
             tabMenu.setOnClickListener(v -> selecionarAba(AbaNavegacao.MENU, true));
+        }
+
+        // Aplica a área segura (safe area) para evitar sobreposição com botões/gestos Samsung
+        View bottomNav = findViewById(R.id.bottomNavigationView);
+        if (bottomNav != null) {
+            final int baseLeft = bottomNav.getPaddingLeft();
+            final int baseTop = bottomNav.getPaddingTop();
+            final int baseRight = bottomNav.getPaddingRight();
+            final int baseBottom = bottomNav.getPaddingBottom();
+            ViewCompat.setOnApplyWindowInsetsListener(bottomNav, (v, insets) -> {
+                Insets bars = insets.getInsets(
+                        WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
+                );
+                v.setPadding(baseLeft, baseTop, baseRight, baseBottom + bars.bottom);
+                return insets;
+            });
         }
     }
 

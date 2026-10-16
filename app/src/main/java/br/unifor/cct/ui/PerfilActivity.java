@@ -97,6 +97,13 @@ public class PerfilActivity extends Activity {
     }
 
     private Professor obterProfessorPrincipal() {
+        int idExtra = getIntent().getIntExtra("professorId", -1);
+        if (idExtra > 0) {
+            Professor p = professores.buscarPorId(idExtra);
+            if (p != null) {
+                return p;
+            }
+        }
         List<Professor> lista = professores.listar();
         if (!lista.isEmpty()) {
             return lista.get(0);

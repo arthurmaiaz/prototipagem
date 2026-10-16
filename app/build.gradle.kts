@@ -84,5 +84,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation(files(sdkNitgen))
 }

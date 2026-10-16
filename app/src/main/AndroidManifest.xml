@@ -4,6 +4,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Opcional: o app pode rodar em aparelhos sem câmera física ou foco automático. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <!-- Opcional: o app instala em aparelho sem NFC e usa o QR Code. -->
     <uses-feature
@@ -93,6 +102,11 @@
             android:name=".ui.AssistenteActivity"
             android:exported="false"
             android:label="Assistente Virtual" />
+
+        <activity
+            android:name=".ui.LerQrCodeActivity"
+            android:exported="false"
+            android:label="Ler QR Code" />
     </application>
 
 </manifest>
