@@ -3,7 +3,7 @@
 # Faz as mesmas chamadas, com os mesmos parâmetros e o mesmo arquivo de token.
 #
 #   ./scripts/test-api.sh -Ip 192.168.0.104              # só /health
-#   ./scripts/test-api.sh -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 40 s
+#   ./scripts/test-api.sh -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 30 s
 #   ./scripts/test-api.sh -Ip 192.168.0.104 -Logs -Limit 10
 #
 # Os parâmetros também aceitam a forma --ip, --read-tag, --logs etc.
