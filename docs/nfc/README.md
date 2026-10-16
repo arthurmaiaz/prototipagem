@@ -187,8 +187,10 @@ No projeto do Apps Script:
     o `testarHealthNfc` e o `testarLeituraNfc` funcionaram, e a leitura
     devolveu a PAT-001. As respostas foram registradas na aba
     `leituras_nfc` da planilha.
-- Prints da tela do celular, do Registro de execução e da aba
-  `leituras_nfc`: adicionar nesta pasta.
+  - `evidencias/2026-10-16-tela-teste-nfc-api-ligada.jpg`: tela "Teste
+    NFC" com a API no ar (token tarjado; ele foi trocado depois do teste).
+- Prints do Registro de execução do Apps Script e da aba `leituras_nfc`:
+  adicionar em `evidencias/`.
 
 ## Limitações
 
