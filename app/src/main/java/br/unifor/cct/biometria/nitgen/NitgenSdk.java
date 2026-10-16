@@ -88,6 +88,8 @@ public class NitgenSdk {
     private final Context contexto;
     private final String serial;
     private final List<Comparacao> comparacoes = new ArrayList<>();
+    /** Por que a última instância extra falhou (só para a tela de teste). */
+    private volatile String falhaComparacao;
     private final ExecutorService thread = Executors.newSingleThreadExecutor();
     private final Handler principal = new Handler(Looper.getMainLooper());
 
@@ -284,16 +286,19 @@ public class NitgenSdk {
      * sequencial. As instâncias são liberadas em encerrar().
      */
     public List<Comparacao> criarComparacoes(int quantas) {
+        falhaComparacao = null;
         while (comparacoes.size() < quantas) {
             NBioBSPJNI extra;
             try {
                 extra = new NBioBSPJNI(serial, contexto, SEM_EVENTOS);
             } catch (RuntimeException | UnsatisfiedLinkError e) {
                 Log.w(TAG, "Instância extra do SDK não foi criada: " + e);
+                falhaComparacao = e.toString();
                 break;
             }
             if (extra.IsErrorOccured()) {
                 Log.w(TAG, "Instância extra do SDK com erro " + codigo(extra.GetErrorCode()));
+                falhaComparacao = "erro " + codigo(extra.GetErrorCode());
                 extra.dispose();
                 break;
             }
@@ -301,6 +306,11 @@ public class NitgenSdk {
             comparacoes.add(new Comparacao(extra));
         }
         return new ArrayList<>(comparacoes);
+    }
+
+    /** Por que a última instância extra não foi criada (null se não falhou). */
+    public String getFalhaComparacao() {
+        return falhaComparacao;
     }
 
     /** Libera as instâncias extras (ex.: a busca em paralelo não passou na conferência). */

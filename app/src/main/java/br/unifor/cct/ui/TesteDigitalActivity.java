@@ -264,9 +264,10 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
                 if (resultado.isSucesso()) {
                     Professor p = professores.buscarPorEmail(resultado.getProfessorEmail());
                     fim("IDENTIFICADO: " + resultado.getProfessorEmail()
-                            + (p == null ? " (nome não sincronizado)" : " - " + p.getNome()));
+                            + (p == null ? " (nome não sincronizado)" : " - " + p.getNome())
+                            + tempoBusca());
                 } else {
-                    fim("NÃO IDENTIFICADO: " + resultado.getMensagem());
+                    fim("NÃO IDENTIFICADO: " + resultado.getMensagem() + tempoBusca());
                 }
             }
 
@@ -275,6 +276,12 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
                 fim("Erro: " + mensagem);
             }
         });
+    }
+
+    /** Tempo só da busca nos arrays, sem a captura do dedo. */
+    private String tempoBusca() {
+        long ms = matcher.getUltimaBuscaMs();
+        return ms < 0 ? "" : " [busca: " + ms + " ms]";
     }
 
     // ------------------------------------------------- PIN da coordenação
