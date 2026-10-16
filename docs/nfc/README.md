@@ -189,8 +189,10 @@ No projeto do Apps Script:
     `leituras_nfc` da planilha.
   - `evidencias/2026-10-16-tela-teste-nfc-api-ligada.jpg`: tela "Teste
     NFC" com a API no ar (token tarjado; ele foi trocado depois do teste).
-- Prints do Registro de execução do Apps Script e da aba `leituras_nfc`:
-  adicionar em `evidencias/`.
+  - `evidencias/2026-10-16-apps-script-registro-execucao.png`: o
+    `testarLeituraNfc` no Apps Script, com HTTP 200 e PAT-001.
+  - `evidencias/2026-10-16-aba-leituras-nfc.png`: as chamadas `/health` e
+    `/v1/nfc/read` gravadas na aba `leituras_nfc`.
 
 ## Limitações
 
