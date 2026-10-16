@@ -35,14 +35,17 @@ public class FluxoReservaTest {
 
     private BiometriaCallback leituraPendente;
     private final ApiFalsa api = new ApiFalsa();
-    private final Map<Integer, Professor> cadastro = new HashMap<>();
+    private final Map<String, Professor> cadastro = new HashMap<>();
     private final List<Estado> estados = new ArrayList<>();
     private FluxoReserva fluxo;
 
+    private static final String ANA = "ana@unifor.br";
+    private static final String BRUNO = "bruno@unifor.br";
+
     @Before
     public void setUp() {
-        cadastro.put(1, new Professor(1, "Ana Souza", "123", true));
-        cadastro.put(2, new Professor(2, "Bruno Lima", null, false));
+        cadastro.put(ANA, new Professor(ANA, "Ana Souza", "123", true));
+        cadastro.put(BRUNO, new Professor(BRUNO, "Bruno Lima", null, false));
         fluxo = new FluxoReserva(cb -> leituraPendente = cb, cadastro::get, api, RELOGIO);
         fluxo.setListener(estados::add);
     }
@@ -51,9 +54,9 @@ public class FluxoReservaTest {
         return fluxo.getEstado();
     }
 
-    private void digitalDe(Integer professorId) {
+    private void digitalDe(String professorEmail) {
         fluxo.lerDigital();
-        leituraPendente.onSucesso(new ResultadoBiometria(professorId != null, professorId, ""));
+        leituraPendente.onSucesso(new ResultadoBiometria(professorEmail != null, professorEmail, ""));
     }
 
     private void tag(String codigo) {
@@ -67,7 +70,7 @@ public class FluxoReservaTest {
 
         fluxo.lerDigital();
         assertEquals(Etapa.IDENTIFICANDO, atual().etapa);
-        leituraPendente.onSucesso(new ResultadoBiometria(true, 1, "ok"));
+        leituraPendente.onSucesso(new ResultadoBiometria(true, ANA, "ok"));
         assertEquals(Etapa.PROJETOR, atual().etapa);
         assertEquals("Ana Souza", atual().professorNome);
 
@@ -80,7 +83,7 @@ public class FluxoReservaTest {
 
         fluxo.confirmarHorario("2026-09-22", "19:00", "20:40");
         assertEquals(Etapa.ENVIANDO, atual().etapa);
-        assertEquals("criarReserva 1 PAT-001 2026-09-22 19:00 20:40", api.ultimaChamada);
+        assertEquals("criarReserva ana@unifor.br PAT-001 2026-09-22 19:00 20:40", api.ultimaChamada);
 
         api.pendente.onSucesso(new ReservaResultado(true, 1000, "Reserva realizada com sucesso."));
         assertEquals(Etapa.CONCLUIDA, atual().etapa);
@@ -90,7 +93,7 @@ public class FluxoReservaTest {
 
         fluxo.reiniciar();
         assertEquals(Etapa.DIGITAL, atual().etapa);
-        assertNull(atual().professorId);
+        assertNull(atual().professorEmail);
     }
 
     @Test
@@ -107,21 +110,21 @@ public class FluxoReservaTest {
 
     @Test
     public void professorInativoNaoPassa() {
-        digitalDe(2);
+        digitalDe(BRUNO);
         assertEquals(Etapa.DIGITAL, atual().etapa);
         assertEquals("Bruno Lima está inativo. Procure a coordenação.", atual().mensagem);
     }
 
     @Test
-    public void professorForaDoCadastroLocalSegueComOId() {
-        digitalDe(7);
+    public void professorForaDoCadastroLocalSegueComOEmail() {
+        digitalDe("zeca@unifor.br");
         assertEquals(Etapa.PROJETOR, atual().etapa);
-        assertEquals("professor 7", atual().nomeOuId());
+        assertEquals("zeca@unifor.br", atual().nomeOuEmail());
     }
 
     @Test
     public void tagInvalidaOuComErroFicaEmProjetor() {
-        digitalDe(1);
+        digitalDe(ANA);
         fluxo.projetorLido(new ResultadoNfc(false, null, "Tag vazia."));
         assertEquals(Etapa.PROJETOR, atual().etapa);
         assertEquals("Tag vazia.", atual().mensagem);
@@ -141,14 +144,14 @@ public class FluxoReservaTest {
         fluxo.confirmarHorario("2026-09-22", "19:00", "20:00");
         assertNull(api.ultimaChamada);
 
-        digitalDe(1);
+        digitalDe(ANA);
         fluxo.lerDigital();
         assertEquals("lerDigital fora da etapa DIGITAL", Etapa.PROJETOR, atual().etapa);
     }
 
     @Test
     public void horarioInvalidoOuPassadoNaoEnvia() {
-        digitalDe(1);
+        digitalDe(ANA);
         tag("PAT-001");
         fluxo.confirmarHorario("2026-09-22", "21:00", "19:00");
         assertEquals(Etapa.HORARIO, atual().etapa);
@@ -165,7 +168,7 @@ public class FluxoReservaTest {
 
     @Test
     public void recusaDoServidorVoltaParaHorario() {
-        digitalDe(1);
+        digitalDe(ANA);
         tag("PAT-001");
         fluxo.confirmarHorario("2026-09-22", "19:00", "21:00");
         api.pendente.onErro("Projetor PAT-001 já reservado das 19:00 às 21:00 nesse dia.");
@@ -180,7 +183,7 @@ public class FluxoReservaTest {
 
     @Test
     public void voltarDesfazUmaEtapa() {
-        digitalDe(1);
+        digitalDe(ANA);
         tag("PAT-001");
         fluxo.voltar();
         assertEquals(Etapa.PROJETOR, atual().etapa);
@@ -188,7 +191,7 @@ public class FluxoReservaTest {
         assertEquals("Ana Souza", atual().professorNome);
         fluxo.voltar();
         assertEquals(Etapa.DIGITAL, atual().etapa);
-        assertNull(atual().professorId);
+        assertNull(atual().professorEmail);
     }
 
     @Test
@@ -196,10 +199,10 @@ public class FluxoReservaTest {
         fluxo.lerDigital();
         BiometriaCallback antiga = leituraPendente;
         fluxo.reiniciar();
-        antiga.onSucesso(new ResultadoBiometria(true, 1, "ok"));
+        antiga.onSucesso(new ResultadoBiometria(true, ANA, "ok"));
         assertEquals(Etapa.DIGITAL, atual().etapa);
 
-        digitalDe(1);
+        digitalDe(ANA);
         tag("PAT-001");
         fluxo.confirmarHorario("2026-09-22", "19:00", "21:00");
         ReservaCallback pedido = api.pendente;
@@ -236,7 +239,7 @@ public class FluxoReservaTest {
     @Test
     public void sugestaoNaoPassaDaMeiaNoite() {
         Clock tarde = Clock.fixed(Instant.parse("2026-09-23T01:30:00Z"), ZoneId.of("America/Fortaleza"));
-        fluxo = new FluxoReserva(cb -> cb.onSucesso(new ResultadoBiometria(true, 1, "")),
+        fluxo = new FluxoReserva(cb -> cb.onSucesso(new ResultadoBiometria(true, ANA, "")),
                 cadastro::get, api, tarde);
         fluxo.lerDigital();
         tag("PAT-001");
@@ -250,9 +253,9 @@ public class FluxoReservaTest {
         ReservaCallback pendente;
 
         @Override
-        public void criarReserva(int professorId, String projetorId, String data,
+        public void criarReserva(String professorEmail, String projetorId, String data,
                                  String inicio, String fim, ReservaCallback callback) {
-            ultimaChamada = "criarReserva " + professorId + " " + projetorId + " " + data
+            ultimaChamada = "criarReserva " + professorEmail + " " + projetorId + " " + data
                     + " " + inicio + " " + fim;
             pendente = callback;
         }

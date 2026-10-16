@@ -9,18 +9,18 @@ package br.unifor.cct.api;
  * substituir a real sem tocar em nenhuma tela.
  *
  * Segue o formato de mensagens da seção 14 do documento de arquitetura:
- * acao, professorId, projetorId, data, inicio, fim / sucesso, reservaId, mensagem.
+ * acao, professorEmail, projetorId, data, inicio, fim / sucesso, reservaId, mensagem.
  */
 public interface ReservaApi {
 
     /**
-     * @param professorId  id retornado pela identificação biométrica (ResultadoBiometria)
+     * @param professorEmail e-mail devolvido pela identificação biométrica (ResultadoBiometria)
      * @param projetorId   código lido por QR Code ou NFC (ex.: "PAT-001")
      * @param data         formato "yyyy-MM-dd", ex.: "2026-09-22"
      * @param inicio       formato "HH:mm", ex.: "19:00"
      * @param fim          formato "HH:mm", ex.: "21:00"
      */
-    void criarReserva(int professorId, String projetorId, String data,
+    void criarReserva(String professorEmail, String projetorId, String data,
                        String inicio, String fim, ReservaCallback callback);
 
     void cancelarReserva(int reservaId, ReservaCallback callback);

@@ -9,6 +9,8 @@ import android.util.Log;
 
 import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,8 +26,10 @@ import java.util.concurrent.Executors;
  *
  * Os templates circulam como texto (TextFIR, base64 gerado pelo SDK).
  * A busca de quem colocou o dedo não usa o IndexSearch do SDK: o
- * BiometricDatabase percorre o array de digitais e chama mesmaDigital
- * para cada posição.
+ * BiometricDatabase percorre os arrays de digitais e chama mesmaDigital
+ * para cada posição. Para percorrer os arrays ao mesmo tempo, cada thread
+ * extra usa a sua própria instância do SDK (criarComparacoes), só para
+ * comparar: a instância principal nunca é usada por duas threads.
  * A imagem da digital nunca sai desta classe, a não ser para o Listener
  * mostrar na tela durante a captura.
  *
@@ -81,6 +85,9 @@ public class NitgenSdk {
     }
 
     private final NBioBSPJNI bsp;
+    private final Context contexto;
+    private final String serial;
+    private final List<Comparacao> comparacoes = new ArrayList<>();
     private final ExecutorService thread = Executors.newSingleThreadExecutor();
     private final Handler principal = new Handler(Looper.getMainLooper());
 
@@ -95,15 +102,17 @@ public class NitgenSdk {
         if (serial == null || serial.isEmpty()) {
             throw new NitgenException("Falta nitgen.serial no local.properties.");
         }
+        this.contexto = context.getApplicationContext();
+        this.serial = serial;
         long inicio = SystemClock.elapsedRealtime();
-        bsp = new NBioBSPJNI(serial, context.getApplicationContext(), callback);
+        bsp = new NBioBSPJNI(serial, contexto, callback);
         Log.d(TAG, "SDK iniciado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
         if (bsp.IsErrorOccured()) {
             String erro = codigo(bsp.GetErrorCode());
             bsp.dispose();
             throw new NitgenException("O SDK do leitor não iniciou (" + erro + ").");
         }
-        configurar();
+        configurar(bsp);
     }
 
     public void setListener(Listener listener) {
@@ -144,6 +153,8 @@ public class NitgenSdk {
             long inicio = SystemClock.elapsedRealtime();
             bsp.releaseDevice();
             bsp.dispose();
+            for (Comparacao c : comparacoes) c.liberar();
+            comparacoes.clear();
             Log.d(TAG, "SDK liberado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
         });
         thread.shutdown();
@@ -263,21 +274,76 @@ public class NitgenSdk {
 
     /** Compara dois templates 1:1. */
     public boolean mesmaDigital(String a, String b) throws NitgenException {
+        return comparar(bsp, a, b);
+    }
+
+    /**
+     * Cria até `quantas` instâncias extras do SDK, cada uma para ser usada
+     * por uma thread da busca em paralelo. Para na primeira que falhar: o
+     * SDK beta pode não aceitar mais de uma instância, e aí a busca fica
+     * sequencial. As instâncias são liberadas em encerrar().
+     */
+    public List<Comparacao> criarComparacoes(int quantas) {
+        while (comparacoes.size() < quantas) {
+            NBioBSPJNI extra;
+            try {
+                extra = new NBioBSPJNI(serial, contexto, SEM_EVENTOS);
+            } catch (RuntimeException | UnsatisfiedLinkError e) {
+                Log.w(TAG, "Instância extra do SDK não foi criada: " + e);
+                break;
+            }
+            if (extra.IsErrorOccured()) {
+                Log.w(TAG, "Instância extra do SDK com erro " + codigo(extra.GetErrorCode()));
+                extra.dispose();
+                break;
+            }
+            configurar(extra);
+            comparacoes.add(new Comparacao(extra));
+        }
+        return new ArrayList<>(comparacoes);
+    }
+
+    /** Libera as instâncias extras (ex.: a busca em paralelo não passou na conferência). */
+    public void liberarComparacoes() {
+        for (Comparacao c : comparacoes) c.liberar();
+        comparacoes.clear();
+    }
+
+    /**
+     * Instância extra do SDK, só para VerifyMatch. Cada uma deve ser usada
+     * por uma thread de cada vez.
+     */
+    public static final class Comparacao {
+        private final NBioBSPJNI bsp;
+
+        private Comparacao(NBioBSPJNI bsp) {
+            this.bsp = bsp;
+        }
+
+        public boolean mesmaDigital(String a, String b) throws NitgenException {
+            return comparar(bsp, a, b);
+        }
+
+        private void liberar() {
+            bsp.dispose();
+        }
+    }
+
+    // ------------------------------------------------------------ internos
+
+    private static boolean comparar(NBioBSPJNI bsp, String a, String b) throws NitgenException {
         // O SDK escreve o resultado dentro deste objeto via JNI. Precisa ser
         // uma instância nova: nunca Boolean.FALSE, que é compartilhado.
         @SuppressWarnings({"deprecation", "BooleanConstructorCall", "UseValueOf"})
         Boolean igual = new Boolean(false);
-        bsp.VerifyMatch(entrada(a), entrada(b), igual, null);
-        Log.d(TAG, "VerifyMatch " + codigo(bsp.GetErrorCode()) + ", igual=" + igual);
+        bsp.VerifyMatch(entrada(bsp, a), entrada(bsp, b), igual, null);
         if (bsp.IsErrorOccured()) {
             throw new NitgenException("Falha ao comparar digitais (" + codigo(bsp.GetErrorCode()) + ").");
         }
         return igual;
     }
 
-    // ------------------------------------------------------------ internos
-
-    private NBioBSPJNI.INPUT_FIR entrada(String template) {
+    private static NBioBSPJNI.INPUT_FIR entrada(NBioBSPJNI bsp, String template) {
         NBioBSPJNI.FIR_TEXTENCODE texto = bsp.new FIR_TEXTENCODE();
         texto.TextFIR = template;
         NBioBSPJNI.INPUT_FIR entrada = bsp.new INPUT_FIR();
@@ -286,7 +352,7 @@ public class NitgenSdk {
     }
 
     /** Mesmos valores do app de exemplo da Nitgen. */
-    private void configurar() {
+    private static void configurar(NBioBSPJNI bsp) {
         NBioBSPJNI.INIT_INFO_0 init = bsp.new INIT_INFO_0();
         bsp.GetInitInfo(init);
         init.DefaultTimeout = TIMEOUT_CAPTURA_MS;
@@ -313,6 +379,22 @@ public class NitgenSdk {
     private static String codigo(int codigo) {
         return "código 0x" + Integer.toHexString(codigo);
     }
+
+    /** Instâncias extras não abrem o leitor: os eventos são ignorados. */
+    private static final NBioBSPJNI.CAPTURE_CALLBACK SEM_EVENTOS = new NBioBSPJNI.CAPTURE_CALLBACK() {
+        @Override
+        public void OnConnected() {
+        }
+
+        @Override
+        public void OnDisConnected() {
+        }
+
+        @Override
+        public int OnCaptured(NBioBSPJNI.CAPTURED_DATA dados) {
+            return NBioBSPJNI.ERROR.NBioAPIERROR_USER_CANCEL;
+        }
+    };
 
     private final NBioBSPJNI.CAPTURE_CALLBACK callback = new NBioBSPJNI.CAPTURE_CALLBACK() {
         @Override

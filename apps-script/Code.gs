@@ -5,7 +5,7 @@
  * JSON no corpo, e guarda tudo na planilha à qual este script está ligado.
  *
  * Pedidos:
- *   { acao: "criarReserva", token, professorId, projetorId, data, inicio, fim }
+ *   { acao: "criarReserva", token, professorEmail, projetorId, data, inicio, fim }
  *   { acao: "cancelarReserva" | "consultarReserva" | "registrarDevolucao", token, reservaId }
  *   { acao: "registrarDevolucao", token, projetorId }   (devolução pela tag, sem o id)
  *   { acao: "listarProfessores", token }
@@ -20,7 +20,10 @@
  * reserva ATIVA do mesmo projetor no mesmo horário. A devolução muda a
  * reserva para FINALIZADA e libera o resto do horário.
  *
- * Nenhum dado biométrico chega aqui: o terminal só envia o professorId.
+ * O professor é identificado pelo e-mail (aba professores, coluna email),
+ * sempre comparado em minúsculas.
+ *
+ * Nenhum dado biométrico chega aqui: o terminal só envia o professorEmail.
  */
 
 var ABA_PROFESSORES = 'professores';
@@ -29,9 +32,9 @@ var ABA_RESERVAS = 'reservas';
 var ABA_CONFIG = 'config';
 
 var CABECALHOS = {
-  professores: ['id', 'nome', 'matricula', 'ativo'],
+  professores: ['email', 'nome', 'matricula', 'ativo'],
   projetores: ['codigo', 'descricao', 'ativo'],
-  reservas: ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
+  reservas: ['id', 'professorEmail', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
   config: ['chave', 'valor']
 };
 
@@ -45,6 +48,7 @@ var ESPERA_LOCK_MS = 10000;
 var DURACAO_MAXIMA_PADRAO_MIN = 240;
 
 var PADRAO_PROJETOR = /^PAT-\d{3,}$/;
+var PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PADRAO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 var PADRAO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -121,8 +125,8 @@ function comLock(funcao) {
 // ------------------------------------------------------------------ ações
 
 function criarReserva(p) {
-  var professorId = Number(p.professorId);
-  if (!Number.isInteger(professorId)) return falha('Professor inválido.');
+  var professorEmail = normalizarEmail(p.professorEmail);
+  if (!PADRAO_EMAIL.test(professorEmail)) return falha('E-mail do professor inválido.');
   if (!PADRAO_PROJETOR.test(p.projetorId || '')) return falha('Código de projetor inválido.');
   if (!dataValida(p.data)) return falha('Data inválida. Use o formato aaaa-mm-dd.');
   if (!PADRAO_HORA.test(p.inicio || '') || !PADRAO_HORA.test(p.fim || '')) {
@@ -139,7 +143,7 @@ function criarReserva(p) {
     return falha('Esse horário já passou. Escolha um horário futuro.');
   }
 
-  var professor = buscar(lerProfessores(), function (x) { return x.id === professorId; });
+  var professor = buscar(lerProfessores(), function (x) { return x.email === professorEmail; });
   if (!professor) return falha('Professor não cadastrado.');
   if (!professor.ativo) return falha('Professor inativo. Procure a coordenação.');
 
@@ -161,7 +165,7 @@ function criarReserva(p) {
 
   var id = proximoReservaId();
   aba(ABA_RESERVAS).appendRow([
-    id, professorId, p.projetorId, p.data, p.inicio, p.fim, 'ATIVA', new Date(), ''
+    id, professorEmail, p.projetorId, p.data, p.inicio, p.fim, 'ATIVA', new Date(), ''
   ]);
   return { sucesso: true, reservaId: id, mensagem: 'Reserva realizada com sucesso.' };
 }
@@ -233,7 +237,7 @@ function consultarReserva(p) {
 /** Para o terminal sincronizar o ProfessorRepository. */
 function listarProfessores() {
   var lista = lerProfessores().map(function (x) {
-    return { id: x.id, nome: x.nome, matricula: x.matricula, ativo: x.ativo };
+    return { email: x.email, nome: x.nome, matricula: x.matricula, ativo: x.ativo };
   });
   return { sucesso: true, reservaId: null, mensagem: lista.length + ' professor(es).', professores: lista };
 }
@@ -242,9 +246,9 @@ function listarProfessores() {
 
 function lerProfessores() {
   return linhas(ABA_PROFESSORES).map(function (l) {
-    return { id: Number(l.valores[0]), nome: texto(l.valores[1]), matricula: texto(l.valores[2]) || null,
-             ativo: booleano(l.valores[3]) };
-  }).filter(function (x) { return Number.isInteger(x.id) && x.nome; });
+    return { email: normalizarEmail(l.valores[0]), nome: texto(l.valores[1]),
+             matricula: texto(l.valores[2]) || null, ativo: booleano(l.valores[3]) };
+  }).filter(function (x) { return PADRAO_EMAIL.test(x.email) && x.nome; });
 }
 
 function lerProjetores() {
@@ -257,7 +261,7 @@ function lerProjetores() {
 function lerReservas() {
   return linhas(ABA_RESERVAS).map(function (l) {
     var v = l.valores;
-    return { linha: l.linha, id: Number(v[0]), professorId: Number(v[1]), projetorId: texto(v[2]),
+    return { linha: l.linha, id: Number(v[0]), professorEmail: normalizarEmail(v[1]), projetorId: texto(v[2]),
              data: textoData(v[3]), inicio: textoHora(v[4]), fim: textoHora(v[5]),
              status: texto(v[6]).toUpperCase() };
   }).filter(function (x) { return Number.isInteger(x.id); });
@@ -347,6 +351,11 @@ function buscar(lista, condicao) {
   return null;
 }
 
+/** E-mail sem espaços e em minúsculas: Ana@Unifor.br e ana@unifor.br são o mesmo. */
+function normalizarEmail(valor) {
+  return texto(valor).toLowerCase();
+}
+
 function texto(valor) {
   return valor === null || valor === undefined ? '' : String(valor).trim();
 }
@@ -405,6 +414,11 @@ function dataBr(data) {
  */
 function configurarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var professoresAntigo = ss.getSheetByName(ABA_PROFESSORES);
+  if (professoresAntigo && texto(professoresAntigo.getRange(1, 1).getValue()) === 'id') {
+    console.log('A aba professores usava id numérico na coluna A. O cabeçalho agora é "email": '
+        + 'troque os números da coluna A pelo e-mail de cada professor.');
+  }
   Object.keys(CABECALHOS).forEach(function (nome) {
     var planilha = ss.getSheetByName(nome) || ss.insertSheet(nome);
     var cabecalho = CABECALHOS[nome];
@@ -413,7 +427,8 @@ function configurarPlanilha() {
   });
 
   var maxLinhas = 1000;
-  // matricula, codigo e data/hora como texto, para o Sheets não converter.
+  // email, matricula, codigo e data/hora como texto, para o Sheets não converter.
+  ss.getSheetByName(ABA_PROFESSORES).getRange(2, 1, maxLinhas, 1).setNumberFormat('@');
   ss.getSheetByName(ABA_PROFESSORES).getRange(2, 3, maxLinhas, 1).setNumberFormat('@');
   ss.getSheetByName(ABA_PROFESSORES).getRange(2, 4, maxLinhas, 1).insertCheckboxes();
   ss.getSheetByName(ABA_PROJETORES).getRange(2, 1, maxLinhas, 1).setNumberFormat('@');

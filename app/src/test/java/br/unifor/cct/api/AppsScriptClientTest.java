@@ -52,7 +52,7 @@ public class AppsScriptClientTest {
         responderComoAppsScript(200,
                 "{\"sucesso\":true,\"reservaId\":1000,\"mensagem\":\"Reserva realizada.\"}");
 
-        Resposta r = chamar(cb -> client.criarReserva(7, "PAT-001", "2026-09-22", "19:00", "21:00", cb));
+        Resposta r = chamar(cb -> client.criarReserva("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00", cb));
 
         assertNull(r.erro);
         assertEquals(Integer.valueOf(1000), r.resultado.getReservaId());
@@ -64,7 +64,8 @@ public class AppsScriptClientTest {
         JSONObject enviado = new JSONObject(post.getBody().readUtf8());
         assertEquals("criarReserva", enviado.getString("acao"));
         assertEquals("segredo", enviado.getString("token"));
-        assertEquals(7, enviado.getInt("professorId"));
+        assertEquals("ana@unifor.br", enviado.getString("professorEmail"));
+        assertFalse(enviado.has("professorId"));
         assertEquals("PAT-001", enviado.getString("projetorId"));
         assertEquals("2026-09-22", enviado.getString("data"));
         assertEquals("19:00", enviado.getString("inicio"));
@@ -120,7 +121,7 @@ public class AppsScriptClientTest {
         responderComoAppsScript(200,
                 "{\"sucesso\":false,\"reservaId\":null,\"mensagem\":\"Projetor ocupado nesse horário.\"}");
 
-        Resposta r = chamar(cb -> client.criarReserva(7, "PAT-001", "2026-09-22", "19:00", "21:00", cb));
+        Resposta r = chamar(cb -> client.criarReserva("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00", cb));
 
         assertEquals("Projetor ocupado nesse horário.", r.erro);
     }
@@ -145,7 +146,7 @@ public class AppsScriptClientTest {
 
     @Test
     public void dadosInvalidosNemChegamAoServidor() throws Exception {
-        Resposta r = chamar(cb -> client.criarReserva(7, "PAT-001", "2026-09-22", "21:00", "19:00", cb));
+        Resposta r = chamar(cb -> client.criarReserva("ana@unifor.br", "PAT-001", "2026-09-22", "21:00", "19:00", cb));
 
         assertEquals("O horário de fim deve ser depois do início.", r.erro);
         assertEquals(0, servidor.getRequestCount());
@@ -169,15 +170,18 @@ public class AppsScriptClientTest {
     public void listarProfessoresConverteListaEIgnoraLinhasIncompletas() throws Exception {
         responderComoAppsScript(200, "{\"sucesso\":true,\"reservaId\":null,\"mensagem\":\"3 professor(es).\","
                 + "\"professores\":["
-                + "{\"id\":1,\"nome\":\"Ana Souza\",\"matricula\":\"12345\",\"ativo\":true},"
-                + "{\"id\":2,\"nome\":\"Bruno Lima\",\"matricula\":null,\"ativo\":false},"
-                + "{\"id\":3,\"nome\":\"\",\"matricula\":null,\"ativo\":true}]}");
+                + "{\"email\":\"Ana@Unifor.br\",\"nome\":\"Ana Souza\",\"matricula\":\"12345\",\"ativo\":true},"
+                + "{\"email\":\"bruno@unifor.br\",\"nome\":\"Bruno Lima\",\"matricula\":null,\"ativo\":false},"
+                + "{\"email\":\"carla@unifor.br\",\"nome\":\"\",\"matricula\":null,\"ativo\":true},"
+                + "{\"email\":\"sem-arroba\",\"nome\":\"Diego\",\"matricula\":null,\"ativo\":true},"
+                + "{\"id\":5,\"nome\":\"Formato antigo\",\"matricula\":null,\"ativo\":true}]}");
 
         RespostaProfessores r = listar();
 
         assertNull(r.erro);
         assertEquals(2, r.professores.size());
         assertEquals("Ana Souza", r.professores.get(0).getNome());
+        assertEquals("ana@unifor.br", r.professores.get(0).getEmail());
         assertEquals("12345", r.professores.get(0).getMatricula());
         assertTrue(r.professores.get(0).isAtivo());
         assertNull(r.professores.get(1).getMatricula());

@@ -61,6 +61,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private BiometricDatabase banco;
     private CadastroDigitalNitgen cadastro;
     private BiometriaService biometria;
+    private NitgenMatcher matcher;
     private ProfessorRepository professores;
     private PinAdministrador pin;
 
@@ -70,7 +71,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
     private TextView tvEstado;
     private TextView tvInstrucao;
-    private EditText etProfessorId;
+    private EditText etProfessorEmail;
     private TextView tvNomeProfessor;
     private Button btnAbrir;
     private Button btnCadastrar;
@@ -89,7 +90,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
         tvEstado = findViewById(R.id.tvEstado);
         tvInstrucao = findViewById(R.id.tvInstrucao);
-        etProfessorId = findViewById(R.id.etProfessorId);
+        etProfessorEmail = findViewById(R.id.etProfessorEmail);
         tvNomeProfessor = findViewById(R.id.tvNomeProfessor);
         btnAbrir = findViewById(R.id.btnAbrir);
         btnCadastrar = findViewById(R.id.btnCadastrar);
@@ -104,7 +105,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         abertaPeloLeitor = UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(getIntent().getAction());
         professores = new ProfessorRepository(this);
         pin = PinAdministrador.padrao(this);
-        etProfessorId.addTextChangedListener(new TextWatcher() {
+        etProfessorEmail.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
@@ -141,7 +142,8 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         }
         sdk.setListener(this);
         cadastro = new CadastroDigitalNitgen(sdk, banco);
-        biometria = new BiometriaService(new HamsterDxReader(sdk), new NitgenMatcher(sdk, banco));
+        matcher = new NitgenMatcher(sdk, banco);
+        biometria = new BiometriaService(new HamsterDxReader(sdk), matcher);
 
         tvEstado.setText("SDK " + sdk.getVersao() + ". Carregando digitais...");
         sdk.executar(banco::quantidade, new NitgenSdk.Resultado<Integer>() {
@@ -152,8 +154,11 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
                     registrar("Leitor conectado: abrindo...");
                     sdk.abrir();
                 }
-                tvEstado.setText("SDK " + sdk.getVersao() + ". " + quantidade + " de "
-                        + banco.capacidade() + " posições ocupadas.");
+                mostrarOcupacao();
+                if (banco.digitaisDescartadas() > 0) {
+                    registrar("Aviso: " + banco.digitaisDescartadas() + " digital(is) do formato "
+                            + "antigo (id numérico) foram descartadas. Cadastre de novo pelo e-mail.");
+                }
                 if (banco.houveFalhaAoCarregar()) {
                     registrar("Aviso: o arquivo de digitais não pôde ser lido e foi ignorado. "
                             + "As digitais precisam ser cadastradas de novo.");
@@ -207,10 +212,10 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     }
 
     private void cadastrar() {
-        Integer id = professorId();
-        if (id == null) return;
-        inicio("Cadastrando a digital do professor " + id + "...");
-        cadastro.cadastrar(id, new CadastroDigitalNitgen.Callback() {
+        String email = professorEmail();
+        if (email == null) return;
+        inicio("Cadastrando a digital de " + email + "...");
+        cadastro.cadastrar(email, new CadastroDigitalNitgen.Callback() {
             @Override
             public void onEtapa(String instrucao) {
                 tvInstrucao.setText(instrucao);
@@ -230,10 +235,10 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     }
 
     private void remover() {
-        Integer id = professorId();
-        if (id == null) return;
-        inicio("Removendo a digital do professor " + id + "...");
-        cadastro.remover(id, new CadastroDigitalNitgen.Callback() {
+        String email = professorEmail();
+        if (email == null) return;
+        inicio("Removendo a digital de " + email + "...");
+        cadastro.remover(email, new CadastroDigitalNitgen.Callback() {
             @Override
             public void onEtapa(String instrucao) {
             }
@@ -257,8 +262,8 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
             @Override
             public void onSucesso(ResultadoBiometria resultado) {
                 if (resultado.isSucesso()) {
-                    Professor p = professores.buscarPorId(resultado.getProfessorId());
-                    fim("IDENTIFICADO: professor " + resultado.getProfessorId()
+                    Professor p = professores.buscarPorEmail(resultado.getProfessorEmail());
+                    fim("IDENTIFICADO: " + resultado.getProfessorEmail()
                             + (p == null ? " (nome não sincronizado)" : " - " + p.getNome()));
                 } else {
                     fim("NÃO IDENTIFICADO: " + resultado.getMensagem());
@@ -468,27 +473,31 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         ocupado = false;
         tvInstrucao.setText("");
         registrar(mensagem);
+        if (digitaisCarregadas) mostrarOcupacao();
         atualizarBotoes();
     }
 
-    private Integer professorId() {
-        try {
-            int id = Integer.parseInt(etProfessorId.getText().toString().trim());
-            if (id > 0) return id;
-        } catch (NumberFormatException ignorado) {
-            // cai no erro abaixo
+    /** Digitais por array e se a busca está em paralelo. */
+    private void mostrarOcupacao() {
+        int[] porArray = banco.quantidadePorArray();
+        StringBuilder texto = new StringBuilder("SDK " + sdk.getVersao() + ". Digitais:");
+        for (int a = 0; a < porArray.length; a++) {
+            texto.append(" array ").append(a + 1).append(' ').append(porArray[a])
+                    .append('/').append(banco.tamanhoArray()).append(a + 1 < porArray.length ? ";" : ".");
         }
-        registrar("Erro: informe um id de professor maior que zero.");
+        texto.append('\n').append(matcher.descricaoBusca());
+        tvEstado.setText(texto);
+    }
+
+    private String professorEmail() {
+        String email = Professor.normalizarEmail(etProfessorEmail.getText().toString());
+        if (Professor.emailValido(email)) return email;
+        registrar("Erro: informe o e-mail do professor (ex.: nome@unifor.br).");
         return null;
     }
 
     private void mostrarNome() {
-        Professor p;
-        try {
-            p = professores.buscarPorId(Integer.parseInt(etProfessorId.getText().toString().trim()));
-        } catch (NumberFormatException e) {
-            p = null;
-        }
+        Professor p = professores.buscarPorEmail(etProfessorEmail.getText().toString());
         tvNomeProfessor.setText(p == null ? "Professor não encontrado no cadastro local"
                 : p.getNome() + (p.isAtivo() ? "" : " (inativo)"));
     }

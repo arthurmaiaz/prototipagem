@@ -92,10 +92,11 @@ function carregar(abas, opcoes = {}) {
 function abasPadrao() {
   return {
     professores: [
-      ['id', 'nome', 'matricula', 'ativo'],
-      [1, 'Ana Souza', '12345', true],
-      [2, 'Bruno Lima', '', false],
-      [3, 'Carla Dias', '777', 'VERDADEIRO'],
+      ['email', 'nome', 'matricula', 'ativo'],
+      ['ana@unifor.br', 'Ana Souza', '12345', true],
+      ['bruno@unifor.br', 'Bruno Lima', '', false],
+      [' Carla@Unifor.br ', 'Carla Dias', '777', 'VERDADEIRO'],
+      [7, 'Sem E-mail', '', true],
     ],
     projetores: [
       ['codigo', 'descricao', 'ativo'],
@@ -104,7 +105,7 @@ function abasPadrao() {
       ['PAT-003', 'LG', true],
     ],
     reservas: [
-      ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
+      ['id', 'professorEmail', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
     ],
     config: [
       ['chave', 'valor'],
@@ -115,7 +116,7 @@ function abasPadrao() {
 
 function criar(app, extra = {}) {
   return app.pedir(Object.assign({
-    acao: 'criarReserva', token: TOKEN, professorId: 1, projetorId: 'PAT-001',
+    acao: 'criarReserva', token: TOKEN, professorEmail: 'ana@unifor.br', projetorId: 'PAT-001',
     data: '2026-09-22', inicio: '19:00', fim: '21:00',
   }, extra));
 }
@@ -126,7 +127,7 @@ const testes = {
     const r = criar(app);
     assert.deepStrictEqual([r.sucesso, r.reservaId], [true, 1000]);
     const linha = app.ss.sheets.reservas.dados[1];
-    assert.deepStrictEqual(linha.slice(0, 7), [1000, 1, 'PAT-001', '2026-09-22', '19:00', '21:00', 'ATIVA']);
+    assert.deepStrictEqual(linha.slice(0, 7), [1000, 'ana@unifor.br', 'PAT-001', '2026-09-22', '19:00', '21:00', 'ATIVA']);
     assert.ok(linha[7] instanceof Date);
     assert.strictEqual(app.ss.sheets.config.dados[1][1], 1001);
   },
@@ -140,7 +141,7 @@ const testes = {
   'contador apagado ou atrasado não repete id'() {
     const abas = abasPadrao();
     abas.config = [['chave', 'valor']];
-    abas.reservas.push([1005, 1, 'PAT-003', '2026-09-22', '08:00', '10:00', 'CANCELADA', '', '']);
+    abas.reservas.push([1005, 'ana@unifor.br', 'PAT-003', '2026-09-22', '08:00', '10:00', 'CANCELADA', '', '']);
     const app = carregar(abas);
     assert.strictEqual(criar(app).reservaId, 1006);
     assert.deepStrictEqual(app.ss.sheets.config.dados[1], ['proximoReservaId', 1007]);
@@ -149,7 +150,7 @@ const testes = {
   'sobreposição no mesmo projetor e dia é recusada'() {
     const app = carregar(abasPadrao());
     criar(app);
-    const r = criar(app, { professorId: 3, inicio: '20:00', fim: '22:00' });
+    const r = criar(app, { professorEmail: 'carla@unifor.br', inicio: '20:00', fim: '22:00' });
     assert.strictEqual(r.sucesso, false);
     assert.strictEqual(r.mensagem, 'Projetor PAT-001 já reservado das 19:00 às 21:00 nesse dia.');
   },
@@ -166,13 +167,13 @@ const testes = {
     const app = carregar(abasPadrao());
     const id = criar(app).reservaId;
     assert.ok(app.pedir({ acao: 'cancelarReserva', token: TOKEN, reservaId: id }).sucesso);
-    assert.ok(criar(app, { professorId: 3 }).sucesso);
+    assert.ok(criar(app, { professorEmail: 'carla@unifor.br' }).sucesso);
   },
 
   'datas e horas convertidas pelo Sheets ainda contam no conflito'() {
     const abas = abasPadrao();
     // 22/09/2026 00:00 e 19:00/21:00 em UTC-3, como o Sheets guardaria.
-    abas.reservas.push([999, 1, 'PAT-001', new Date('2026-09-22T03:00:00Z'),
+    abas.reservas.push([999, 'ana@unifor.br', 'PAT-001', new Date('2026-09-22T03:00:00Z'),
       new Date('1899-12-30T22:00:00Z'), new Date('1899-12-31T00:00:00Z'), 'ATIVA', '', '']);
     const app = carregar(abas);
     assert.strictEqual(criar(app, { inicio: '20:00', fim: '20:30' }).sucesso, false);
@@ -180,10 +181,14 @@ const testes = {
 
   'valida professor'() {
     const app = carregar(abasPadrao());
-    assert.strictEqual(criar(app, { professorId: 99 }).mensagem, 'Professor não cadastrado.');
-    assert.strictEqual(criar(app, { professorId: 2 }).mensagem, 'Professor inativo. Procure a coordenação.');
-    assert.strictEqual(criar(app, { professorId: 'abc' }).mensagem, 'Professor inválido.');
-    assert.ok(criar(app, { professorId: 3 }).sucesso, 'VERDADEIRO digitado à mão conta como ativo');
+    assert.strictEqual(criar(app, { professorEmail: 'zeca@unifor.br' }).mensagem, 'Professor não cadastrado.');
+    assert.strictEqual(criar(app, { professorEmail: 'bruno@unifor.br' }).mensagem,
+      'Professor inativo. Procure a coordenação.');
+    assert.strictEqual(criar(app, { professorEmail: 'abc' }).mensagem, 'E-mail do professor inválido.');
+    assert.strictEqual(criar(app, { professorEmail: 7 }).mensagem, 'E-mail do professor inválido.');
+    assert.ok(criar(app, { professorEmail: ' CARLA@unifor.BR' }).sucesso,
+      'e-mail sem diferença de maiúsculas, e VERDADEIRO digitado à mão conta como ativo');
+    assert.strictEqual(app.ss.sheets.reservas.dados[1][1], 'carla@unifor.br', 'grava o e-mail normalizado');
   },
 
   'valida projetor'() {
@@ -264,7 +269,7 @@ const testes = {
     assert.strictEqual(linha[6], 'FINALIZADA');
     assert.ok(linha[9] instanceof Date);
 
-    assert.ok(criar(app, { professorId: 3, inicio: '20:00', fim: '21:00' }).sucesso);
+    assert.ok(criar(app, { professorEmail: 'carla@unifor.br', inicio: '20:00', fim: '21:00' }).sucesso);
     assert.strictEqual(devolver().mensagem, 'A reserva 1000 não está ativa (FINALIZADA).');
     assert.strictEqual(app.pedir({ acao: 'consultarReserva', token: TOKEN, reservaId: id }).mensagem,
       'Reserva 1000: PAT-001 em 22/09/2026, das 19:00 às 21:00 (FINALIZADA).');
@@ -300,7 +305,9 @@ const testes = {
     const app = carregar(abasPadrao());
     const r = app.pedir({ acao: 'listarProfessores', token: TOKEN });
     assert.strictEqual(r.sucesso, true);
-    assert.deepStrictEqual(r.professores.map((p) => [p.id, p.ativo]), [[1, true], [2, false], [3, true]]);
+    assert.deepStrictEqual(r.professores.map((p) => [p.email, p.ativo]),
+      [['ana@unifor.br', true], ['bruno@unifor.br', false], ['carla@unifor.br', true]],
+      'linha sem e-mail válido fica de fora');
     assert.strictEqual(r.professores[1].matricula, null);
   },
 
@@ -337,7 +344,7 @@ const testes = {
   'doPost devolve o JSON no formato do AppsScriptClient'() {
     const app = carregar(abasPadrao());
     const r = app.doPost({ postData: { contents: JSON.stringify({
-      acao: 'criarReserva', token: TOKEN, professorId: 1, projetorId: 'PAT-001',
+      acao: 'criarReserva', token: TOKEN, professorEmail: 'ana@unifor.br', projetorId: 'PAT-001',
       data: '2026-09-22', inicio: '19:00', fim: '21:00' }) } });
     assert.deepStrictEqual(Object.keys(r).sort(), ['mensagem', 'reservaId', 'sucesso']);
     assert.strictEqual(app.doPost({}).mensagem, 'Requisição inválida.');

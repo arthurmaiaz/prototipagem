@@ -35,16 +35,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:labelFor="@id/etProfessorId"
-            android:text="Professor (id) para cadastrar ou remover" />
+            android:labelFor="@id/etProfessorEmail"
+            android:text="E-mail do professor para cadastrar ou remover" />
 
         <EditText
-            android:id="@+id/etProfessorId"
+            android:id="@+id/etProfessorEmail"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:hint="nome@unifor.br"
             android:importantForAutofill="no"
-            android:inputType="number"
-            android:text="1" />
+            android:inputType="textEmailAddress" />
 
         <TextView
             android:id="@+id/tvNomeProfessor"
