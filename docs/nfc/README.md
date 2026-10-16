@@ -183,8 +183,12 @@ No projeto do Apps Script:
     (`patrimony: PAT-001`, `valid: true`).
   - `evidencias/2026-10-16-timeout-e-logs.txt`: o 408 depois de 30 s sem
     tag e o `/v1/audit/logs` com as chamadas registradas.
-- Ainda faltam os prints da tela do celular com a API ligada e a chamada
-  pelo Apps Script (`TesteNfc.gs`, aba `leituras_nfc`).
+  - **Apps Script pelo túnel** (`cloudflared tunnel --url http://<ip>:8787`):
+    o `testarHealthNfc` e o `testarLeituraNfc` funcionaram, e a leitura
+    devolveu a PAT-001. As respostas foram registradas na aba
+    `leituras_nfc` da planilha.
+- Prints da tela do celular, do Registro de execução e da aba
+  `leituras_nfc`: adicionar nesta pasta.
 
 ## Limitações
 
