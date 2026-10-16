@@ -1,23 +1,30 @@
 package br.unifor.cct.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
 import br.unifor.cct.BuildConfig;
 import br.unifor.cct.R;
+import br.unifor.cct.admin.PinAdministrador;
+import br.unifor.cct.admin.PinAdministrador.Verificacao;
 import br.unifor.cct.biometria.BiometriaCallback;
 import br.unifor.cct.biometria.BiometriaService;
 import br.unifor.cct.biometria.BiometricDatabase;
@@ -42,6 +49,9 @@ import br.unifor.cct.storage.ProfessorRepository;
  * As digitais ficam no BiometricDatabase (cifrado, só no aparelho). Os
  * nomes vêm do ProfessorRepository: sincronize antes na TesteReservaActivity
  * para vê-los aqui.
+ *
+ * Cadastrar e remover pedem o PIN da coordenação (PinAdministrador). No
+ * primeiro uso a tela pede para criar o PIN. Identificar não pede PIN.
  */
 public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener {
 
@@ -52,6 +62,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private CadastroDigitalNitgen cadastro;
     private BiometriaService biometria;
     private ProfessorRepository professores;
+    private PinAdministrador pin;
 
     private boolean ocupado;
     private boolean digitaisCarregadas;
@@ -64,6 +75,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private Button btnAbrir;
     private Button btnCadastrar;
     private Button btnRemover;
+    private Button btnTrocarPin;
     private Button btnIdentificar;
     private Button btnCancelar;
     private ImageView ivDigital;
@@ -82,6 +94,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         btnAbrir = findViewById(R.id.btnAbrir);
         btnCadastrar = findViewById(R.id.btnCadastrar);
         btnRemover = findViewById(R.id.btnRemover);
+        btnTrocarPin = findViewById(R.id.btnTrocarPin);
         btnIdentificar = findViewById(R.id.btnIdentificar);
         btnCancelar = findViewById(R.id.btnCancelar);
         ivDigital = findViewById(R.id.ivDigital);
@@ -90,6 +103,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
         abertaPeloLeitor = UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(getIntent().getAction());
         professores = new ProfessorRepository(this);
+        pin = PinAdministrador.padrao(this);
         etProfessorId.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -107,8 +121,9 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         mostrarNome();
 
         btnAbrir.setOnClickListener(v -> abrirOuFechar());
-        btnCadastrar.setOnClickListener(v -> cadastrar());
-        btnRemover.setOnClickListener(v -> remover());
+        btnCadastrar.setOnClickListener(v -> comoAdministrador(this::cadastrar));
+        btnRemover.setOnClickListener(v -> comoAdministrador(this::remover));
+        btnTrocarPin.setOnClickListener(v -> trocarPin());
         btnIdentificar.setOnClickListener(v -> identificar());
         btnCancelar.setOnClickListener(v -> sdk.cancelarCaptura());
 
@@ -163,6 +178,13 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
             registrar("Leitor conectado: abrindo...");
             sdk.abrir();
         }
+    }
+
+    /** Saiu da tela: a próxima ação de administrador pede o PIN de novo. */
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!ocupado) pin.encerrar();
     }
 
     @Override
@@ -250,6 +272,168 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         });
     }
 
+    // ------------------------------------------------- PIN da coordenação
+
+    /** Roda a ação se o PIN já foi digitado há pouco; senão pede o PIN antes. */
+    private void comoAdministrador(Runnable acao) {
+        if (pin.liberado()) {
+            pin.renovar();
+            acao.run();
+        } else if (!pin.temPin()) {
+            criarPin(acao);
+        } else {
+            pedirPin(acao);
+        }
+    }
+
+    private void criarPin(Runnable depois) {
+        EditText novo = campoPin("Novo PIN (" + PinAdministrador.TAMANHO_MINIMO + " a "
+                + PinAdministrador.TAMANHO_MAXIMO + " dígitos)");
+        EditText repetir = campoPin("Repita o PIN");
+        dialogo("Criar PIN da coordenação",
+                "Este terminal ainda não tem PIN. Só quem souber o PIN poderá cadastrar "
+                        + "e remover digitais. Se ele for esquecido, será preciso limpar os "
+                        + "dados do app, o que apaga todas as digitais.",
+                "Criar", () -> {
+                    String a = novo.getText().toString();
+                    if (!PinAdministrador.formatoValido(a)) {
+                        registrar("Erro: o PIN precisa ter de " + PinAdministrador.TAMANHO_MINIMO
+                                + " a " + PinAdministrador.TAMANHO_MAXIMO + " dígitos.");
+                    } else if (!a.equals(repetir.getText().toString())) {
+                        registrar("Erro: os dois PINs não são iguais.");
+                    } else {
+                        emSegundoPlano(() -> {
+                            pin.definir(a);
+                            return Verificacao.CORRETO;
+                        }, v -> {
+                            registrar("PIN da coordenação criado.");
+                            depois.run();
+                        });
+                    }
+                }, novo, repetir);
+    }
+
+    private void pedirPin(Runnable depois) {
+        if (pin.bloqueado()) {
+            avisarBloqueio();
+            return;
+        }
+        EditText campo = campoPin("PIN");
+        dialogo("PIN da coordenação", "Cadastrar e remover digitais exige o PIN.", "Confirmar",
+                () -> emSegundoPlano(() -> pin.verificar(campo.getText().toString()), v -> {
+                    if (v == Verificacao.CORRETO) {
+                        depois.run();
+                    } else {
+                        avisarErroPin(v);
+                    }
+                }), campo);
+    }
+
+    private void trocarPin() {
+        if (!pin.temPin()) {
+            criarPin(() -> { });
+            return;
+        }
+        if (pin.bloqueado()) {
+            avisarBloqueio();
+            return;
+        }
+        EditText atual = campoPin("PIN atual");
+        EditText novo = campoPin("Novo PIN");
+        EditText repetir = campoPin("Repita o novo PIN");
+        dialogo("Trocar PIN da coordenação", null, "Trocar", () -> {
+            String n = novo.getText().toString();
+            if (!PinAdministrador.formatoValido(n)) {
+                registrar("Erro: o novo PIN precisa ter de " + PinAdministrador.TAMANHO_MINIMO
+                        + " a " + PinAdministrador.TAMANHO_MAXIMO + " dígitos.");
+            } else if (!n.equals(repetir.getText().toString())) {
+                registrar("Erro: os dois PINs novos não são iguais.");
+            } else {
+                emSegundoPlano(() -> pin.trocar(atual.getText().toString(), n), v -> {
+                    if (v == Verificacao.CORRETO) {
+                        registrar("PIN da coordenação trocado.");
+                    } else {
+                        avisarErroPin(v);
+                    }
+                });
+            }
+        }, atual, novo, repetir);
+    }
+
+    private void avisarErroPin(Verificacao v) {
+        if (v == Verificacao.BLOQUEADO) {
+            avisarBloqueio();
+        } else {
+            registrar("PIN incorreto. Restam " + pin.tentativasRestantes() + " tentativa(s).");
+        }
+    }
+
+    private void avisarBloqueio() {
+        long minutos = Math.max(1, (pin.tempoBloqueioRestante().getSeconds() + 59) / 60);
+        registrar("Muitas tentativas erradas. Tente de novo em " + minutos + " minuto(s).");
+    }
+
+    private EditText campoPin(String dica) {
+        EditText campo = new EditText(this);
+        campo.setHint(dica);
+        campo.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        campo.setFilters(new InputFilter[] {
+                new InputFilter.LengthFilter(PinAdministrador.TAMANHO_MAXIMO) });
+        return campo;
+    }
+
+    private void dialogo(String titulo, String mensagem, String botao, Runnable aoConfirmar,
+                         EditText... campos) {
+        LinearLayout caixa = new LinearLayout(this);
+        caixa.setOrientation(LinearLayout.VERTICAL);
+        int margem = (int) (20 * getResources().getDisplayMetrics().density);
+        caixa.setPadding(margem, margem / 2, margem, 0);
+        for (EditText campo : campos) caixa.addView(campo);
+        new AlertDialog.Builder(this)
+                .setTitle(titulo)
+                .setMessage(mensagem)
+                .setView(caixa)
+                .setPositiveButton(botao, (d, w) -> aoConfirmar.run())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    interface TarefaPin {
+        Verificacao executar() throws IOException;
+    }
+
+    interface AoTerminar {
+        void aceitar(Verificacao v);
+    }
+
+    /** O PBKDF2 leva uma fração de segundo: fica fora da thread da tela. */
+    private void emSegundoPlano(TarefaPin tarefa, AoTerminar aoTerminar) {
+        btnCadastrar.setEnabled(false);
+        btnRemover.setEnabled(false);
+        btnTrocarPin.setEnabled(false);
+        new Thread(() -> {
+            Verificacao v;
+            String erro = null;
+            try {
+                v = tarefa.executar();
+            } catch (IOException e) {
+                v = null;
+                erro = e.getMessage();
+            }
+            Verificacao resultado = v;
+            String mensagemErro = erro;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                atualizarBotoes();
+                if (resultado == null) {
+                    registrar("Erro ao gravar o PIN: " + mensagemErro);
+                } else {
+                    aoTerminar.aceitar(resultado);
+                }
+            });
+        }, "pin-administrador").start();
+    }
+
     // ---------------------------------------------------- NitgenSdk.Listener
 
     @Override
@@ -319,6 +503,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         btnIdentificar.setEnabled(pronto);
         btnRemover.setEnabled(iniciado && digitaisCarregadas && !ocupado);
         btnCancelar.setEnabled(ocupado);
+        btnTrocarPin.setEnabled(!ocupado);
     }
 
     /** Linha nova no topo do registro, com o horário. */

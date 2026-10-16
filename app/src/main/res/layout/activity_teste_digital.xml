@@ -67,6 +67,13 @@
             android:text="Remover digital" />
 
         <Button
+            android:id="@+id/btnTrocarPin"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Trocar PIN da coordenação" />
+
+        <Button
             android:id="@+id/btnIdentificar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
