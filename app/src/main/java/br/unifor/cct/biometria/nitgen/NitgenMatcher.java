@@ -48,6 +48,10 @@ public class NitgenMatcher implements FingerprintMatcher {
     // Só usados na thread do SDK (dentro de sdk.executar).
     private volatile Paralelo paralelo = Paralelo.PENDENTE;
     private List<NitgenSdk.Comparacao> extras = new ArrayList<>();
+    /** Por que a busca em paralelo foi desativada (para a tela de teste). */
+    private volatile String motivoSequencial;
+    /** Duração da última busca nos arrays, em ms (-1 antes da primeira). */
+    private volatile long ultimaBuscaMs = -1;
 
     public NitgenMatcher(NitgenSdk sdk, BiometricDatabase banco) {
         this.sdk = sdk;
@@ -70,7 +74,10 @@ public class NitgenMatcher implements FingerprintMatcher {
                     comparadores.add(amostra -> c.mesmaDigital(lida, amostra));
                 }
             }
+            long inicio = System.nanoTime();
             List<String> encontrados = banco.identificar(comparadores);
+            ultimaBuscaMs = (System.nanoTime() - inicio) / 1_000_000;
+            Log.i(TAG, "Busca em " + ultimaBuscaMs + " ms com " + comparadores.size() + " thread(s).");
             if (encontrados.size() > 1) {
                 throw new NitgenException("A digital conferiu com mais de um professor "
                         + encontrados + ". Coloque o dedo de novo.");
@@ -89,22 +96,36 @@ public class NitgenMatcher implements FingerprintMatcher {
         });
     }
 
-    /** Para a tela de teste mostrar se a busca está em paralelo. */
+    /**
+     * Para a tela de teste mostrar se a busca está em paralelo, por que não
+     * está e quanto tempo levou a última.
+     */
     public String descricaoBusca() {
+        String modo;
         switch (paralelo) {
             case ATIVO:
-                return "Busca em paralelo: " + (extras.size() + 1) + " threads.";
+                modo = "Busca em paralelo: " + (extras.size() + 1) + " threads.";
+                break;
             case DESATIVADO:
-                return "Busca sequencial (o SDK não permitiu a busca em paralelo).";
+                modo = "Busca sequencial (paralelo desativado: " + motivoSequencial + ").";
+                break;
             default:
-                return "Busca sequencial até a primeira digital ser cadastrada e conferida.";
+                modo = "Busca sequencial até a primeira digital ser cadastrada e conferida.";
         }
+        long ms = ultimaBuscaMs;
+        return ms < 0 ? modo : modo + " Última busca: " + ms + " ms.";
+    }
+
+    /** Duração da última busca nos arrays, em ms (-1 antes da primeira). */
+    public long getUltimaBuscaMs() {
+        return ultimaBuscaMs;
     }
 
     /** Cria as instâncias extras e confere a busca em paralelo, uma vez. */
     private void prepararParalelo() {
         if (paralelo != Paralelo.PENDENTE) return;
         if (banco.arrays() < 2) {
+            motivoSequencial = "só há um array";
             paralelo = Paralelo.DESATIVADO;
             return;
         }
@@ -116,7 +137,8 @@ public class NitgenMatcher implements FingerprintMatcher {
 
         extras = sdk.criarComparacoes(banco.arrays() - 1);
         if (extras.isEmpty()) {
-            desativar("o SDK não criou instâncias extras");
+            String falha = sdk.getFalhaComparacao();
+            desativar("o SDK não criou instâncias extras" + (falha == null ? "" : ", " + falha));
             return;
         }
         try {
@@ -127,7 +149,7 @@ public class NitgenMatcher implements FingerprintMatcher {
                 desativar("as instâncias deram resultados diferentes");
             }
         } catch (Exception e) {
-            desativar("erro na conferência: " + e.getMessage());
+            desativar("erro na conferência: " + e);
         }
     }
 
@@ -183,6 +205,7 @@ public class NitgenMatcher implements FingerprintMatcher {
 
     private void desativar(String motivo) {
         Log.w(TAG, "Busca em paralelo desativada: " + motivo);
+        motivoSequencial = motivo;
         sdk.liberarComparacoes();
         extras = new ArrayList<>();
         paralelo = Paralelo.DESATIVADO;
