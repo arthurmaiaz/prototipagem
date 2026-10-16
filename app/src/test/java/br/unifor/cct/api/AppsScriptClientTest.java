@@ -1,6 +1,7 @@
 package br.unifor.cct.api;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -98,6 +99,20 @@ public class AppsScriptClientTest {
         JSONObject enviado = new JSONObject(servidor.takeRequest().getBody().readUtf8());
         assertEquals("registrarDevolucao", enviado.getString("acao"));
         assertEquals(1000, enviado.getInt("reservaId"));
+    }
+
+    @Test
+    public void devolucaoPeloProjetorEnviaOCodigo() throws Exception {
+        responderComoAppsScript(200,
+                "{\"sucesso\":true,\"reservaId\":1001,\"mensagem\":\"Devolução registrada.\"}");
+
+        Resposta r = chamar(cb -> client.devolverProjetor("PAT-001", cb));
+
+        assertNull(r.erro);
+        JSONObject enviado = new JSONObject(servidor.takeRequest().getBody().readUtf8());
+        assertEquals("registrarDevolucao", enviado.getString("acao"));
+        assertEquals("PAT-001", enviado.getString("projetorId"));
+        assertFalse(enviado.has("reservaId"));
     }
 
     @Test

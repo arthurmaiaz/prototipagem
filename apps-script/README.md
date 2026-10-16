@@ -75,7 +75,7 @@ Todo pedido é um POST com JSON. A resposta sempre traz
 |---|---|---|
 | `criarReserva` | `professorId`, `projetorId`, `data` (`aaaa-mm-dd`), `inicio`, `fim` (`hh:mm`) | Recusa conflito de horário no mesmo projetor e dia, horário cujo fim já passou e duração acima de `duracaoMaximaMinutos`. |
 | `cancelarReserva` | `reservaId` | Só reservas `ATIVA`. |
-| `registrarDevolucao` | `reservaId` | Só reservas `ATIVA` que já começaram. Muda para `FINALIZADA` e grava `devolvidaEm`. |
+| `registrarDevolucao` | `reservaId` ou `projetorId` | Só reservas `ATIVA` que já começaram. Muda para `FINALIZADA` e grava `devolvidaEm`. Com `projetorId` (devolução pela tag no terminal), vale a reserva em uso do projetor que começou por último. |
 | `consultarReserva` | `reservaId` | A mensagem descreve a reserva e o status. |
 | `listarProfessores` | nenhum | Também devolve `professores: [{ id, nome, matricula, ativo }]`. |
 

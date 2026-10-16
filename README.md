@@ -23,7 +23,7 @@ As digitais ficam só no aparelho, cifradas, num **array de posições**
   posição ocupada (`VerifyMatch` 1:1 do SDK). Se conferir com mais de um
   professor, ninguém é identificado e o app pede o dedo de novo.
 - **Quem cadastra:** cadastrar e remover digitais exige o **PIN da
-  coordenação** (`admin/PinAdministrador`), de 6 a 8 dígitos. Identificar
+  coordenação** (`admin/PinAdministrador`), de 4 a 6 dígitos. Identificar
   não pede PIN.
   - No primeiro uso, a tela de digitais pede para criar o PIN. Ele é guardado
     só como hash PBKDF2 com sal, no aparelho.
@@ -32,6 +32,31 @@ As digitais ficam só no aparelho, cifradas, num **array de posições**
     reabrindo o app.
   - **Esqueceu o PIN?** Limpe os dados do app em Configurações > Apps. Isso
     apaga também todas as digitais, que precisam ser cadastradas de novo.
+
+## Fluxo do terminal (reservar e devolver)
+
+O card **Reservar** da tela inicial abre a `ReservaActivity`. Toda a regra
+está no `fluxo/FluxoReserva`, que não depende de tela:
+
+| Modo | Etapas |
+|---|---|
+| Reservar | `DIGITAL` → `IDENTIFICANDO` → `PROJETOR` (tag NFC) → `HORARIO` → `ENVIANDO` → `CONCLUIDA` |
+| Devolver | `PROJETOR` (tag NFC) → `ENVIANDO` → `CONCLUIDA` (não pede digital) |
+
+- A tela repassa os eventos: `lerDigital()`, `projetorLido(ResultadoNfc)`
+  (ou `informarProjetor(codigo)`, para o QR Code), `confirmarHorario(...)`,
+  `voltar()`, `reiniciar()` e `iniciar(Modo)`.
+- A cada mudança, o fluxo entrega um `Estado` imutável com a etapa, o
+  professor, o projetor, o horário, o número da reserva e a mensagem. Se
+  `erro == true`, a mensagem deve aparecer em destaque.
+- Erros não encerram o fluxo: a digital não reconhecida fica em `DIGITAL`,
+  e o projetor ocupado volta para `HORARIO` com a mensagem do servidor.
+- O horário sugerido começa agora e dura 2 horas. A duração máxima e a
+  recusa de horário que já passou são conferidas pelo Apps Script.
+- A devolução usa só a tag: o Apps Script acha a reserva em uso daquele
+  projetor.
+- A `ReservaActivity` volta ao começo 15 s depois de concluir, ou depois de
+  2 min parada no meio. O visual é provisório.
 
 ## Build e testes
 

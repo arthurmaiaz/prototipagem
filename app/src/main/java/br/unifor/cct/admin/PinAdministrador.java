@@ -37,8 +37,8 @@ import javax.crypto.spec.PBEKeySpec;
  */
 public class PinAdministrador {
 
-    public static final int TAMANHO_MINIMO = 6;
-    public static final int TAMANHO_MAXIMO = 8;
+    public static final int TAMANHO_MINIMO = 4;
+    public static final int TAMANHO_MAXIMO = 6;
     public static final int MAX_TENTATIVAS = 5;
     public static final Duration TEMPO_BLOQUEIO = Duration.ofMinutes(5);
     public static final Duration TEMPO_LIBERADO = Duration.ofMinutes(5);
