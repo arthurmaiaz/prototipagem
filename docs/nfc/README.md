@@ -45,6 +45,7 @@ NTAG213/215/216 ou MIFARE Ultralight.
 | `app/.../rest/PonteNfc.java` | Leva a leitura da tela até o pedido HTTP que está esperando. |
 | `docs/nfc/openapi.yaml` | Swagger (OpenAPI 3) da API. |
 | `scripts/test-api.ps1` | Script de teste do professor (cópia sem alterações). |
+| `scripts/test-api.sh` | O mesmo teste em bash, para Linux e macOS (mesmos parâmetros). |
 | `apps-script/TesteNfc.gs` | Chamada de teste a partir do Google Apps Script. |
 
 ## Como executar
@@ -87,7 +88,21 @@ Set-Content .\appnfc-test-token.txt "<token copiado da tela>"
 
 O `appnfc-test-token.txt` está no `.gitignore`.
 
-### Testar com curl (Linux / macOS)
+### Testar no Linux / macOS
+
+O `test-api.ps1` não roda no Linux nem com o PowerShell instalado, porque usa
+o `Test-NetConnection`, que só existe no Windows. O `scripts/test-api.sh` faz
+as mesmas chamadas, com os mesmos parâmetros e o mesmo arquivo de token:
+
+```bash
+echo '<token copiado da tela>' > appnfc-test-token.txt
+./scripts/test-api.sh -Ip 192.168.0.104              # só /health
+./scripts/test-api.sh -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 30 s
+./scripts/test-api.sh -Ip 192.168.0.104 -Logs -Limit 10
+```
+
+Precisa de `curl`; se o `jq` estiver instalado, o JSON sai formatado. Sem o
+script, com curl direto:
 
 ```bash
 IP=192.168.0.104; TOKEN='<token>'
@@ -162,9 +177,18 @@ No projeto do Apps Script:
   paginação da auditoria e pedido HTTP malformado.
 - Testes do Apps Script (`node apps-script/teste/teste.js`): chamada da API
   e registro na aba `leituras_nfc`, inclusive em caso de erro HTTP.
-- Prints do celular e do PowerShell: adicionar em `docs/nfc/evidencias/`
-  depois do teste com a tag real (tela de leitura, tela com a API ligada,
-  saída do `test-api.ps1 -ReadTag` e aba `leituras_nfc`).
+- **Teste no celular, em 16/10/2026** (Samsung SM-M546B e tag real PAT-001,
+  com o PC no Linux rodando o `test-api.sh`):
+  - `evidencias/2026-10-16-readtag.txt`: health e leitura da tag
+    (`patrimony: PAT-001`, `valid: true`).
+  - `evidencias/2026-10-16-timeout-e-logs.txt`: o 408 depois de 30 s sem
+    tag e o `/v1/audit/logs` com as chamadas registradas.
+  - **Apps Script pelo túnel** (`cloudflared tunnel --url http://<ip>:8787`):
+    o `testarHealthNfc` e o `testarLeituraNfc` funcionaram, e a leitura
+    devolveu a PAT-001. As respostas foram registradas na aba
+    `leituras_nfc` da planilha.
+- Prints da tela do celular, do Registro de execução e da aba
+  `leituras_nfc`: adicionar nesta pasta.
 
 ## Limitações
 
