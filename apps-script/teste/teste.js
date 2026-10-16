@@ -12,6 +12,8 @@ const vm = require('vm');
 const assert = require('assert');
 
 const TOKEN = 'token-de-teste';
+// Relógio fixo dos testes: as reservas de exemplo (22/09/2026) ficam no futuro.
+const AGORA_PADRAO = '2026-09-20T12:00:00-03:00';
 
 function novaPlanilha(abas) {
   const sheets = {};
@@ -74,12 +76,15 @@ function carregar(abas, opcoes = {}) {
   for (const arquivo of ['Code.gs', 'TesteNfc.gs']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', arquivo), 'utf8'), contexto);
   }
+  const relogio = { agora: new Date(opcoes.agora || AGORA_PADRAO) };
+  contexto.agora = () => new Date(relogio.agora.getTime());
   return {
     ss,
     // Passa a resposta por JSON, como acontece no fio HTTP.
     pedir: (corpo) => JSON.parse(JSON.stringify(
         contexto.tratarPedido(typeof corpo === 'string' ? corpo : JSON.stringify(corpo)))),
     doPost: (e) => JSON.parse(contexto.doPost(e).texto),
+    acertarRelogio: (iso) => { relogio.agora = new Date(iso); },
     contexto,
   };
 }
@@ -99,7 +104,7 @@ function abasPadrao() {
       ['PAT-003', 'LG', true],
     ],
     reservas: [
-      ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm'],
+      ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
     ],
     config: [
       ['chave', 'valor'],
@@ -215,6 +220,56 @@ const testes = {
 
     const inexistente = app.pedir({ acao: 'consultarReserva', token: TOKEN, reservaId: 5 });
     assert.strictEqual(inexistente.mensagem, 'Reserva não encontrada.');
+  },
+
+  'data passada ou horário que já terminou é recusado'() {
+    const app = carregar(abasPadrao());
+    const passou = 'Esse horário já passou. Escolha um horário futuro.';
+    assert.strictEqual(criar(app, { data: '2026-09-19' }).mensagem, passou);
+    // Agora são 12:00 de 20/09.
+    assert.strictEqual(criar(app, { data: '2026-09-20', inicio: '10:00', fim: '12:00' }).mensagem, passou);
+    assert.ok(criar(app, { data: '2026-09-20', inicio: '11:00', fim: '12:30' }).sucesso,
+      'reserva que já começou mas ainda não terminou é aceita');
+  },
+
+  'duração máxima vem da aba config'() {
+    const app = carregar(abasPadrao());
+    assert.strictEqual(criar(app, { inicio: '08:00', fim: '12:01' }).mensagem,
+      'A reserva pode durar no máximo 4 horas.');
+    assert.ok(criar(app, { inicio: '08:00', fim: '12:00' }).sucesso);
+
+    const abas = abasPadrao();
+    abas.config.push(['duracaoMaximaMinutos', 90]);
+    const curta = carregar(abas);
+    assert.strictEqual(criar(curta, { inicio: '19:00', fim: '20:31' }).mensagem,
+      'A reserva pode durar no máximo 1h30.');
+
+    const invalida = abasPadrao();
+    invalida.config.push(['duracaoMaximaMinutos', 'muito']);
+    assert.ok(criar(carregar(invalida), { inicio: '08:00', fim: '12:00' }).sucesso, 'valor inválido usa o padrão');
+  },
+
+  'devolução finaliza a reserva e libera o horário'() {
+    const app = carregar(abasPadrao());
+    const id = criar(app).reservaId;
+    const devolver = () => app.pedir({ acao: 'registrarDevolucao', token: TOKEN, reservaId: id });
+
+    assert.strictEqual(devolver().mensagem,
+      'A reserva 1000 ainda não começou. Para desistir, cancele a reserva.');
+
+    app.acertarRelogio('2026-09-22T20:00:00-03:00');
+    const r = devolver();
+    assert.deepStrictEqual([r.sucesso, r.reservaId, r.mensagem], [true, 1000, 'Devolução registrada.']);
+    const linha = app.ss.sheets.reservas.dados[1];
+    assert.strictEqual(linha[6], 'FINALIZADA');
+    assert.ok(linha[9] instanceof Date);
+
+    assert.ok(criar(app, { professorId: 3, inicio: '20:00', fim: '21:00' }).sucesso);
+    assert.strictEqual(devolver().mensagem, 'A reserva 1000 não está ativa (FINALIZADA).');
+    assert.strictEqual(app.pedir({ acao: 'consultarReserva', token: TOKEN, reservaId: id }).mensagem,
+      'Reserva 1000: PAT-001 em 22/09/2026, das 19:00 às 21:00 (FINALIZADA).');
+    assert.strictEqual(app.pedir({ acao: 'registrarDevolucao', token: TOKEN, reservaId: 7 }).mensagem,
+      'Reserva não encontrada.');
   },
 
   'listar professores'() {

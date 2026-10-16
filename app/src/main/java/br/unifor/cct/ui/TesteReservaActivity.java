@@ -52,6 +52,7 @@ public class TesteReservaActivity extends Activity {
     private Button btnCriar;
     private Button btnConsultar;
     private Button btnCancelar;
+    private Button btnDevolver;
     private Button btnSincronizar;
     private ProgressBar progressBar;
     private TextView tvRegistro;
@@ -73,6 +74,7 @@ public class TesteReservaActivity extends Activity {
         btnCriar = findViewById(R.id.btnCriar);
         btnConsultar = findViewById(R.id.btnConsultar);
         btnCancelar = findViewById(R.id.btnCancelar);
+        btnDevolver = findViewById(R.id.btnDevolver);
         btnSincronizar = findViewById(R.id.btnSincronizar);
         progressBar = findViewById(R.id.progressBar);
         tvRegistro = findViewById(R.id.tvRegistro);
@@ -92,6 +94,11 @@ public class TesteReservaActivity extends Activity {
             registrar("Cancelando reserva " + id + "...");
             ocupado(true);
             api.cancelarReserva(id, callback("Cancelamento"));
+        }));
+        btnDevolver.setOnClickListener(v -> comReservaId(id -> {
+            registrar("Registrando devolução da reserva " + id + "...");
+            ocupado(true);
+            api.registrarDevolucao(id, callback("Devolução"));
         }));
         btnSincronizar.setOnClickListener(v -> sincronizar());
 
@@ -208,6 +215,7 @@ public class TesteReservaActivity extends Activity {
         btnCriar.setEnabled(!sim);
         btnConsultar.setEnabled(!sim);
         btnCancelar.setEnabled(!sim);
+        btnDevolver.setEnabled(!sim);
         btnSincronizar.setEnabled(!sim);
     }
 

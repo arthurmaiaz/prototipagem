@@ -32,7 +32,7 @@ import br.unifor.cct.model.Reserva;
  * Toda chamada é um POST com JSON no corpo:
  *   { "acao": "criarReserva", "token": ..., "professorId": 1, "projetorId": "PAT-001",
  *     "data": "2026-09-22", "inicio": "19:00", "fim": "21:00" }
- *   { "acao": "cancelarReserva" | "consultarReserva", "token": ..., "reservaId": 1000 }
+ *   { "acao": "cancelarReserva" | "consultarReserva" | "registrarDevolucao", "token": ..., "reservaId": 1000 }
  *   { "acao": "listarProfessores", "token": ... }
  * e a resposta é { "sucesso": ..., "reservaId": ..., "mensagem": ... }, mais
  * "professores": [{ id, nome, matricula, ativo }] no caso de listarProfessores.
@@ -102,6 +102,11 @@ public class AppsScriptClient implements ReservaApi, ProfessorApi {
     @Override
     public void cancelarReserva(int reservaId, ReservaCallback callback) {
         enviar(callback, corpo("cancelarReserva").put("reservaId", reservaId));
+    }
+
+    @Override
+    public void registrarDevolucao(int reservaId, ReservaCallback callback) {
+        enviar(callback, corpo("registrarDevolucao").put("reservaId", reservaId));
     }
 
     @Override

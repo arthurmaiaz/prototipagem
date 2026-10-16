@@ -88,6 +88,19 @@ public class AppsScriptClientTest {
     }
 
     @Test
+    public void devolucaoEnviaReservaId() throws Exception {
+        responderComoAppsScript(200,
+                "{\"sucesso\":true,\"reservaId\":1000,\"mensagem\":\"Devolução registrada.\"}");
+
+        Resposta r = chamar(cb -> client.registrarDevolucao(1000, cb));
+
+        assertNull(r.erro);
+        JSONObject enviado = new JSONObject(servidor.takeRequest().getBody().readUtf8());
+        assertEquals("registrarDevolucao", enviado.getString("acao"));
+        assertEquals(1000, enviado.getInt("reservaId"));
+    }
+
+    @Test
     public void sucessoFalseDoServidorViraErroComMensagemDoServidor() throws Exception {
         responderComoAppsScript(200,
                 "{\"sucesso\":false,\"reservaId\":null,\"mensagem\":\"Projetor ocupado nesse horário.\"}");

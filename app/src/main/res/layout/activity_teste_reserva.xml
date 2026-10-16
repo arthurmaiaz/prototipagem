@@ -151,6 +151,12 @@
         </LinearLayout>
 
         <Button
+            android:id="@+id/btnDevolver"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Registrar devolução" />
+
+        <Button
             android:id="@+id/btnSincronizar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
