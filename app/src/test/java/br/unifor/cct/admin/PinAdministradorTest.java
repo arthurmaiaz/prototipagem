@@ -70,17 +70,17 @@ public class PinAdministradorTest {
 
     @Test
     public void formato() {
+        assertTrue(PinAdministrador.formatoValido("1234"));
         assertTrue(PinAdministrador.formatoValido("123456"));
-        assertTrue(PinAdministrador.formatoValido("12345678"));
-        assertFalse(PinAdministrador.formatoValido("12345"));
-        assertFalse(PinAdministrador.formatoValido("123456789"));
-        assertFalse(PinAdministrador.formatoValido("12345a"));
+        assertFalse(PinAdministrador.formatoValido("123"));
+        assertFalse(PinAdministrador.formatoValido("1234567"));
+        assertFalse(PinAdministrador.formatoValido("123a"));
         assertFalse(PinAdministrador.formatoValido(null));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void recusaPinCurto() throws Exception {
-        novo().definir("1234");
+        novo().definir("123");
     }
 
     @Test(expected = IllegalStateException.class)
