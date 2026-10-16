@@ -1,6 +1,8 @@
 package br.unifor.cct.model;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
@@ -66,7 +68,8 @@ public class Reserva {
     /**
      * Duas reservas do mesmo projetor no mesmo dia conflitam se os
      * intervalos se sobrepõem. Encostar (uma termina 21:00, outra começa
-     * 21:00) não é conflito. Reservas canceladas nunca conflitam.
+     * 21:00) não é conflito. Só reservas ATIVA conflitam: canceladas e
+     * finalizadas (projetor devolvido) liberam o horário.
      *
      * A checagem oficial é do Apps Script; esta serve para validar
      * antes de enviar.
@@ -78,6 +81,18 @@ public class Reserva {
                 && data.equals(outra.data)
                 && inicio.isBefore(outra.fim)
                 && outra.inicio.isBefore(fim);
+    }
+
+    public long getDuracaoMinutos() {
+        return Duration.between(inicio, fim).toMinutes();
+    }
+
+    /**
+     * true se o horário de fim já passou. O Apps Script recusa reservas
+     * assim; esta checagem serve para avisar antes de enviar.
+     */
+    public boolean jaTerminou(LocalDateTime agora) {
+        return !LocalDateTime.of(data, fim).isAfter(agora);
     }
 
     public Reserva comId(int novoId) {

@@ -6,13 +6,18 @@
  *
  * Pedidos:
  *   { acao: "criarReserva", token, professorId, projetorId, data, inicio, fim }
- *   { acao: "cancelarReserva" | "consultarReserva", token, reservaId }
+ *   { acao: "cancelarReserva" | "consultarReserva" | "registrarDevolucao", token, reservaId }
  *   { acao: "listarProfessores", token }
  * Resposta:
  *   { sucesso, reservaId, mensagem }   (listarProfessores também traz "professores")
  *
  * O token do terminal fica nas Propriedades do script (chave TOKEN), nunca
  * na planilha. Rode definirToken() uma vez para gerar.
+ *
+ * Regras da reserva: o fim não pode ter passado, a duração não passa de
+ * duracaoMaximaMinutos (aba config, padrão 240) e não pode haver outra
+ * reserva ATIVA do mesmo projetor no mesmo horário. A devolução muda a
+ * reserva para FINALIZADA e libera o resto do horário.
  *
  * Nenhum dado biométrico chega aqui: o terminal só envia o professorId.
  */
@@ -25,16 +30,18 @@ var ABA_CONFIG = 'config';
 var CABECALHOS = {
   professores: ['id', 'nome', 'matricula', 'ativo'],
   projetores: ['codigo', 'descricao', 'ativo'],
-  reservas: ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm'],
+  reservas: ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
   config: ['chave', 'valor']
 };
 
 // Colunas da aba reservas (1 = A), usadas para atualizar uma célula.
 var COL_STATUS = 7;
 var COL_CANCELADA_EM = 9;
+var COL_DEVOLVIDA_EM = 10;
 
 var PRIMEIRO_RESERVA_ID = 1000;
 var ESPERA_LOCK_MS = 10000;
+var DURACAO_MAXIMA_PADRAO_MIN = 240;
 
 var PADRAO_PROJETOR = /^PAT-\d{3,}$/;
 var PADRAO_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -82,6 +89,8 @@ function tratarPedido(corpo) {
         return comLock(function () { return criarReserva(pedido); });
       case 'cancelarReserva':
         return comLock(function () { return cancelarReserva(pedido); });
+      case 'registrarDevolucao':
+        return comLock(function () { return registrarDevolucao(pedido); });
       case 'consultarReserva':
         return consultarReserva(pedido);
       case 'listarProfessores':
@@ -120,6 +129,15 @@ function criarReserva(p) {
   }
   if (p.fim <= p.inicio) return falha('O horário de fim deve ser depois do início.');
 
+  var duracaoMaxima = duracaoMaximaMinutos();
+  if (minutos(p.fim) - minutos(p.inicio) > duracaoMaxima) {
+    return falha('A reserva pode durar no máximo ' + textoDuracao(duracaoMaxima) + '.');
+  }
+  var hoje = dataHoraLocal(agora());
+  if (p.data < hoje.data || (p.data === hoje.data && p.fim <= hoje.hora)) {
+    return falha('Esse horário já passou. Escolha um horário futuro.');
+  }
+
   var professor = buscar(lerProfessores(), function (x) { return x.id === professorId; });
   if (!professor) return falha('Professor não cadastrado.');
   if (!professor.ativo) return falha('Professor inativo. Procure a coordenação.');
@@ -157,6 +175,24 @@ function cancelarReserva(p) {
   planilha.getRange(reserva.linha, COL_STATUS).setValue('CANCELADA');
   planilha.getRange(reserva.linha, COL_CANCELADA_EM).setValue(new Date());
   return { sucesso: true, reservaId: reserva.id, mensagem: 'Reserva cancelada.' };
+}
+
+/** O professor devolveu o projetor: a reserva termina e o horário fica livre. */
+function registrarDevolucao(p) {
+  var reserva = buscarReserva(p.reservaId);
+  if (!reserva) return falha('Reserva não encontrada.');
+  if (reserva.status !== 'ATIVA') {
+    return falha('A reserva ' + reserva.id + ' não está ativa (' + reserva.status + ').');
+  }
+  var momento = agora();
+  var local = dataHoraLocal(momento);
+  if (local.data + ' ' + local.hora < reserva.data + ' ' + reserva.inicio) {
+    return falha('A reserva ' + reserva.id + ' ainda não começou. Para desistir, cancele a reserva.');
+  }
+  var planilha = aba(ABA_RESERVAS);
+  planilha.getRange(reserva.linha, COL_STATUS).setValue('FINALIZADA');
+  planilha.getRange(reserva.linha, COL_DEVOLVIDA_EM).setValue(momento);
+  return { sucesso: true, reservaId: reserva.id, mensagem: 'Devolução registrada.' };
 }
 
 function consultarReserva(p) {
@@ -245,7 +281,36 @@ function proximoReservaId() {
   return id;
 }
 
+/** Lê um valor da aba config; devolve o padrão se a chave não existir. */
+function lerConfig(chave, padrao) {
+  var linha = buscar(linhas(ABA_CONFIG), function (l) { return texto(l.valores[0]) === chave; });
+  return linha ? linha.valores[1] : padrao;
+}
+
+function duracaoMaximaMinutos() {
+  var valor = Number(lerConfig('duracaoMaximaMinutos', DURACAO_MAXIMA_PADRAO_MIN));
+  return Number.isInteger(valor) && valor > 0 ? valor : DURACAO_MAXIMA_PADRAO_MIN;
+}
+
 // --------------------------------------------------------------- utilidades
+
+/** Separado para os testes poderem fixar o relógio. */
+function agora() {
+  return new Date();
+}
+
+/** "hh:mm" em minutos desde a meia-noite. */
+function minutos(hora) {
+  var partes = hora.split(':').map(Number);
+  return partes[0] * 60 + partes[1];
+}
+
+function textoDuracao(totalMinutos) {
+  var h = Math.floor(totalMinutos / 60);
+  var m = totalMinutos % 60;
+  if (!m) return h + (h === 1 ? ' hora' : ' horas');
+  return h ? h + 'h' + String(m).padStart(2, '0') : m + ' minutos';
+}
 
 function falha(mensagem) {
   return { sucesso: false, reservaId: null, mensagem: mensagem };
@@ -282,6 +347,14 @@ function textoData(valor) {
 function textoHora(valor) {
   if (valor instanceof Date) return Utilities.formatDate(valor, fuso(), 'HH:mm');
   return texto(valor);
+}
+
+/** Data "aaaa-mm-dd" e hora "hh:mm" de um instante, no fuso da planilha. */
+function dataHoraLocal(momento) {
+  return {
+    data: Utilities.formatDate(momento, fuso(), 'yyyy-MM-dd'),
+    hora: Utilities.formatDate(momento, fuso(), 'HH:mm')
+  };
 }
 
 function fuso() {
@@ -326,6 +399,8 @@ function configurarPlanilha() {
   var config = ss.getSheetByName(ABA_CONFIG);
   var temContador = config.getDataRange().getValues().some(function (l) { return l[0] === 'proximoReservaId'; });
   if (!temContador) config.appendRow(['proximoReservaId', PRIMEIRO_RESERVA_ID]);
+  var temDuracao = config.getDataRange().getValues().some(function (l) { return l[0] === 'duracaoMaximaMinutos'; });
+  if (!temDuracao) config.appendRow(['duracaoMaximaMinutos', DURACAO_MAXIMA_PADRAO_MIN]);
 
   var padrao = ss.getSheetByName('Página1') || ss.getSheetByName('Sheet1');
   if (padrao && padrao.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(padrao);

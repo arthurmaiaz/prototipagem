@@ -44,6 +44,13 @@ public class MockReservaApi implements ReservaApi, ProfessorApi {
     }
 
     @Override
+    public void registrarDevolucao(int reservaId, ReservaCallback callback) {
+        handler.postDelayed(() -> callback.onSucesso(
+                new ReservaResultado(true, reservaId, "Devolução registrada.")),
+                LATENCIA_SIMULADA_MS);
+    }
+
+    @Override
     public void consultarReserva(int reservaId, ReservaCallback callback) {
         handler.postDelayed(() -> callback.onSucesso(
                 new ReservaResultado(true, reservaId, "Reserva ativa.")),

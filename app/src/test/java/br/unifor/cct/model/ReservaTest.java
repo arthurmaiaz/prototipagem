@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.time.LocalDateTime;
+
 public class ReservaTest {
 
     @Test
@@ -62,6 +64,27 @@ public class ReservaTest {
         Reserva b = Reserva.nova(2, "PAT-001", "2026-09-22", "19:00", "21:00")
                 .comStatus(StatusReserva.CANCELADA);
         assertFalse(a.conflitaCom(b));
+    }
+
+    @Test
+    public void reservaFinalizadaNaoConflita() {
+        Reserva a = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva b = Reserva.nova(2, "PAT-001", "2026-09-22", "19:00", "21:00")
+                .comStatus(StatusReserva.FINALIZADA);
+        assertFalse(a.conflitaCom(b));
+    }
+
+    @Test
+    public void duracaoEmMinutos() {
+        assertEquals(150, Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:30").getDuracaoMinutos());
+    }
+
+    @Test
+    public void jaTerminouComparaComOFim() {
+        Reserva r = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
+        assertFalse(r.jaTerminou(LocalDateTime.of(2026, 9, 22, 20, 0)));
+        assertTrue(r.jaTerminou(LocalDateTime.of(2026, 9, 22, 21, 0)));
+        assertTrue(r.jaTerminou(LocalDateTime.of(2026, 9, 23, 8, 0)));
     }
 
     @Test

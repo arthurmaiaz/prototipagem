@@ -25,5 +25,11 @@ public interface ReservaApi {
 
     void cancelarReserva(int reservaId, ReservaCallback callback);
 
+    /**
+     * O professor devolveu o projetor: a reserva passa a FINALIZADA e o
+     * resto do horário fica livre. Só vale para reserva ATIVA que já começou.
+     */
+    void registrarDevolucao(int reservaId, ReservaCallback callback);
+
     void consultarReserva(int reservaId, ReservaCallback callback);
 }
