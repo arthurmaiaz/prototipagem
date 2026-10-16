@@ -7,6 +7,7 @@
  * Pedidos:
  *   { acao: "criarReserva", token, professorId, projetorId, data, inicio, fim }
  *   { acao: "cancelarReserva" | "consultarReserva" | "registrarDevolucao", token, reservaId }
+ *   { acao: "registrarDevolucao", token, projetorId }   (devolução pela tag, sem o id)
  *   { acao: "listarProfessores", token }
  * Resposta:
  *   { sucesso, reservaId, mensagem }   (listarProfessores também traz "professores")
@@ -177,8 +178,19 @@ function cancelarReserva(p) {
   return { sucesso: true, reservaId: reserva.id, mensagem: 'Reserva cancelada.' };
 }
 
-/** O professor devolveu o projetor: a reserva termina e o horário fica livre. */
+/**
+ * O professor devolveu o projetor: a reserva termina e o horário fica livre.
+ * Aceita o reservaId ou, no terminal, só o projetorId lido na tag: nesse
+ * caso vale a reserva ATIVA do projetor que começou por último.
+ */
 function registrarDevolucao(p) {
+  var temId = p.reservaId !== undefined && p.reservaId !== null && p.reservaId !== '';
+  if (!temId && p.projetorId !== undefined) {
+    if (!PADRAO_PROJETOR.test(p.projetorId || '')) return falha('Código de projetor inválido.');
+    var emUso = reservaEmUso(p.projetorId);
+    if (!emUso) return falha('O projetor ' + p.projetorId + ' não tem reserva em uso para devolver.');
+    p = { reservaId: emUso.id };
+  }
   var reserva = buscarReserva(p.reservaId);
   if (!reserva) return falha('Reserva não encontrada.');
   if (reserva.status !== 'ATIVA') {
@@ -193,6 +205,18 @@ function registrarDevolucao(p) {
   planilha.getRange(reserva.linha, COL_STATUS).setValue('FINALIZADA');
   planilha.getRange(reserva.linha, COL_DEVOLVIDA_EM).setValue(momento);
   return { sucesso: true, reservaId: reserva.id, mensagem: 'Devolução registrada.' };
+}
+
+/** Reserva ATIVA do projetor que já começou; se houver mais de uma, a mais recente. */
+function reservaEmUso(projetorId) {
+  var local = dataHoraLocal(agora());
+  var agoraTexto = local.data + ' ' + local.hora;
+  return lerReservas().filter(function (r) {
+    return r.status === 'ATIVA' && r.projetorId === projetorId
+        && r.data + ' ' + r.inicio <= agoraTexto;
+  }).reduce(function (escolhida, r) {
+    return !escolhida || r.data + ' ' + r.inicio > escolhida.data + ' ' + escolhida.inicio ? r : escolhida;
+  }, null);
 }
 
 function consultarReserva(p) {

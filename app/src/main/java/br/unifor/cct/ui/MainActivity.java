@@ -115,7 +115,7 @@ public class MainActivity extends Activity {
         View cardBiometriaFake = findViewById(R.id.cardBiometriaFake);
 
         vincularAcesso(cardDigital, TesteDigitalActivity.class);
-        vincularAcesso(cardReserva, TesteReservaActivity.class);
+        vincularAcesso(cardReserva, ReservaActivity.class);
         vincularAcesso(cardNfc, TesteNfcActivity.class);
         vincularAcesso(cardCaptura, TesteCapturaActivity.class);
         vincularAcesso(cardUsb, TesteUsbActivity.class);

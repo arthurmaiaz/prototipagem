@@ -31,5 +31,11 @@ public interface ReservaApi {
      */
     void registrarDevolucao(int reservaId, ReservaCallback callback);
 
+    /**
+     * Devolução pelo terminal, só com o código lido na tag: o servidor acha
+     * a reserva ATIVA do projetor que já começou (a mais recente).
+     */
+    void devolverProjetor(String projetorId, ReservaCallback callback);
+
     void consultarReserva(int reservaId, ReservaCallback callback);
 }

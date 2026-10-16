@@ -55,6 +55,13 @@
             android:label="Teste NFC"
             android:launchMode="singleTop" />
 
+        <!-- Fluxo do terminal (Fase 5). singleTop: o NFC entrega a tag por onNewIntent. -->
+        <activity
+            android:name=".ui.ReservaActivity"
+            android:exported="false"
+            android:label="Reservar projetor"
+            android:launchMode="singleTop" />
+
         <activity
             android:name=".ui.TesteReservaActivity"
             android:exported="true"

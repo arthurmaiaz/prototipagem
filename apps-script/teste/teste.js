@@ -272,6 +272,30 @@ const testes = {
       'Reserva não encontrada.');
   },
 
+  'devolução pelo código do projetor acha a reserva em uso'() {
+    const app = carregar(abasPadrao());
+    criar(app, { data: '2026-09-21', inicio: '08:00', fim: '10:00' });
+    criar(app, { inicio: '19:00', fim: '21:00' });
+    criar(app, { inicio: '21:00', fim: '22:00' });
+    criar(app, { projetorId: 'PAT-003', inicio: '19:00', fim: '21:00' });
+    const devolver = (projetorId) => app.pedir({ acao: 'registrarDevolucao', token: TOKEN, projetorId });
+
+    // 20/09 12:00: nenhuma reserva do PAT-001 começou ainda.
+    assert.strictEqual(devolver('PAT-001').mensagem,
+      'O projetor PAT-001 não tem reserva em uso para devolver.');
+
+    // 22/09 19:30: a de 21/09 (atrasada) e a de 19:00 já começaram; vale a mais recente.
+    app.acertarRelogio('2026-09-22T19:30:00-03:00');
+    const r = devolver('PAT-001');
+    assert.deepStrictEqual([r.sucesso, r.reservaId], [true, 1001]);
+    assert.strictEqual(app.ss.sheets.reservas.dados[2][6], 'FINALIZADA');
+
+    assert.strictEqual(devolver('PAT-001').reservaId, 1000, 'depois devolve a atrasada');
+    assert.strictEqual(devolver('PAT-001').sucesso, false, 'a das 21:00 ainda não começou');
+    assert.strictEqual(app.ss.sheets.reservas.dados[4][6], 'ATIVA', 'o outro projetor não muda');
+    assert.strictEqual(devolver('sala 3').mensagem, 'Código de projetor inválido.');
+  },
+
   'listar professores'() {
     const app = carregar(abasPadrao());
     const r = app.pedir({ acao: 'listarProfessores', token: TOKEN });
