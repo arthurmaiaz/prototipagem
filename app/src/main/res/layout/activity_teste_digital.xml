@@ -219,21 +219,21 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:labelFor="@id/etProfessorId"
-                    android:text="ID do Professor:"
+                    android:labelFor="@id/etProfessorEmail"
+                    android:text="E-mail do professor para cadastrar ou remover:"
                     android:textColor="@color/unifor_text_secondary"
                     android:textSize="12sp" />
 
                 <EditText
-                    android:id="@+id/etProfessorId"
+                    android:id="@+id/etProfessorEmail"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_input_field"
+                    android:hint="nome@unifor.br"
                     android:importantForAutofill="no"
-                    android:inputType="number"
+                    android:inputType="textEmailAddress"
                     android:padding="12dp"
-                    android:text="1"
                     android:textColor="@color/unifor_text_primary"
                     android:textSize="14sp" />
 
@@ -280,6 +280,17 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
                 </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnTrocarPin"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="8dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:text="Trocar PIN da coordenação"
+                    android:textAllCaps="false"
+                    android:textColor="@color/unifor_primary_brand"
+                    android:textSize="13sp" />
             </LinearLayout>
 
             <!-- Card de Pré-visualização da Imagem da Digital -->

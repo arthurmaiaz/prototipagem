@@ -4,9 +4,9 @@ import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 
 import br.unifor.cct.biometria.BiometricDatabase;
+import br.unifor.cct.model.Professor;
 
 /**
  * Cadastro e remoção da digital de um professor com o leitor Hamster DX.
@@ -17,7 +17,8 @@ import br.unifor.cct.biometria.BiometricDatabase;
  * amostras, o que deixa a busca mais tolerante à posição do dedo. Também
  * recusa uma digital que já está cadastrada para outro professor.
  *
- * Salva no BiometricDatabase (cifrado) e atualiza o índice de busca.
+ * Salva no BiometricDatabase (cifrado), na primeira posição livre do array
+ * (ou na posição que o professor já ocupava).
  * Todos os callbacks chegam na thread principal.
  */
 public class CadastroDigitalNitgen {
@@ -39,7 +40,9 @@ public class CadastroDigitalNitgen {
         this.banco = banco;
     }
 
-    public void cadastrar(int professorId, Callback callback) {
+    /** @param professorEmail e-mail do professor (coluna email da aba professores) */
+    public void cadastrar(String professorEmail, Callback callback) {
+        String email = Professor.normalizarEmail(professorEmail);
         sdk.executar(() -> {
             int qualidade = NitgenSdk.QUALIDADE_ACEITA;
             etapa(callback, "Coloque o dedo no leitor (leitura 1 de 2).");
@@ -54,39 +57,44 @@ public class CadastroDigitalNitgen {
             if (!sdk.mesmaDigital(primeira, segunda)) {
                 throw new NitgenException("As duas leituras não conferem. Tente de novo, com o mesmo dedo.");
             }
+            // Percorre os arrays: a digital não pode ser de outro professor.
             for (String amostra : Arrays.asList(primeira, segunda)) {
-                Integer dono = sdk.identificar(amostra);
-                if (dono != null && dono != professorId) {
-                    throw new NitgenException("Essa digital já está cadastrada para o professor " + dono + ".");
+                for (String dono : banco.identificar(salva -> sdk.mesmaDigital(amostra, salva))) {
+                    if (!dono.equals(email)) {
+                        throw new NitgenException("Essa digital já está cadastrada para " + dono + ".");
+                    }
                 }
             }
 
-            List<String> amostras = Arrays.asList(primeira, segunda);
-            boolean jaTinha = banco.buscar(professorId) != null;
+            boolean jaTinha = banco.buscar(email) != null;
+            int posicao;
             try {
-                banco.salvar(professorId, amostras);
+                posicao = banco.salvar(email, Arrays.asList(primeira, segunda));
+            } catch (IllegalStateException e) {
+                throw new NitgenException(e.getMessage());
             } catch (IOException e) {
                 throw new NitgenException("Falha ao salvar a digital no aparelho.");
             }
-            sdk.indexar(professorId, amostras);
-            return jaTinha
-                    ? "Digital do professor " + professorId + " atualizada (2 amostras)."
-                    : "Digital do professor " + professorId + " cadastrada (2 amostras).";
+            return "Digital de " + email
+                    + (jaTinha ? " atualizada" : " cadastrada")
+                    + " no array " + (banco.arrayDa(posicao) + 1) + ", posição "
+                    + (posicao % banco.tamanhoArray()) + " (2 amostras).";
         }, resultado(callback));
     }
 
-    public void remover(int professorId, Callback callback) {
+    public void remover(String professorEmail, Callback callback) {
+        String email = Professor.normalizarEmail(professorEmail);
         sdk.executar(() -> {
-            boolean existia;
+            int posicao = banco.posicaoDo(email);
             try {
-                existia = banco.remover(professorId);
+                banco.remover(email);
             } catch (IOException e) {
                 throw new NitgenException("Falha ao apagar a digital do aparelho.");
             }
-            sdk.removerDoIndice(professorId);
-            return existia
-                    ? "Digital do professor " + professorId + " removida."
-                    : "O professor " + professorId + " não tinha digital cadastrada.";
+            return posicao >= 0
+                    ? "Digital de " + email + " removida (array " + (banco.arrayDa(posicao) + 1)
+                            + ", posição " + (posicao % banco.tamanhoArray()) + " livre)."
+                    : email + " não tinha digital cadastrada.";
         }, resultado(callback));
     }
 

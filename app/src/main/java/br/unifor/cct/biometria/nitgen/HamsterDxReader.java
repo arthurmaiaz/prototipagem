@@ -24,8 +24,8 @@ public class HamsterDxReader implements FingerprintReader {
 
     @Override
     public void capturar(CapturaCallback callback) {
-        // ENROLL, como no exemplo da Nitgen: a busca 1:N compara com
-        // templates de cadastro, que também são ENROLL.
+        // ENROLL, como no exemplo da Nitgen: a identificação compara com
+        // as amostras do cadastro, que também são ENROLL.
         sdk.executar(() -> sdk.capturar(NBioBSPJNI.FIR_PURPOSE.ENROLL),
                 new NitgenSdk.Resultado<String>() {
                     @Override

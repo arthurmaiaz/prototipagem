@@ -1,0 +1,42 @@
+# Teste da API REST do NFC no celular, em 16/10/2026.
+# Celular: Samsung SM-M546B, com a tela "Teste NFC" aberta, em 192.168.1.83:8787.
+# PC: Fedora Linux, rodando ./scripts/test-api.sh (versão bash do test-api.ps1).
+# A tag usada foi a do projetor PAT-001.
+
+$ ./scripts/test-api.sh -Ip 192.168.1.83 -ReadTag
+Testando conectividade com http://192.168.1.83:8787...
+TCP OK
+Testando autenticação em /health...
+{
+  "status": "ok",
+  "service": "br.unifor.cct NFC API",
+  "version": "1.0",
+  "time": "2026-10-16T23:08:44.246187Z",
+  "nfcAvailable": true,
+  "nfcEnabled": true,
+  "nfcScreenOpen": true,
+  "writing": false,
+  "readPending": false,
+  "correlationId": "8ab90b33-6f4c-45ad-bbf7-3e7e6d4590ef"
+}
+Aproxime a tag NFC do celular agora...
+{
+  "success": true,
+  "valid": true,
+  "patrimony": "PAT-001",
+  "message": "Projetor PAT-001 identificado.",
+  "tagId": "23878914",
+  "techList": [
+    "MifareClassic",
+    "NfcA",
+    "Ndef"
+  ],
+  "texts": [
+    "PAT-001"
+  ],
+  "urls": [],
+  "readAt": "2026-10-16T23:09:00.240856Z",
+  "correlationId": "8ab90b33-6f4c-45ad-bbf7-3e7e6d4590ef"
+}
+Textos NDEF:
+- PAT-001

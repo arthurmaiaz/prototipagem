@@ -1,0 +1,282 @@
+openapi: 3.0.3
+info:
+  title: API NFC do terminal CCT (br.unifor.cct)
+  version: "1.0"
+  description: |
+    API REST servida pelo próprio celular (ServicoApiNfc), no mesmo contrato
+    do `scripts/test-api.ps1`. Lê o código de patrimônio do projetor gravado
+    numa tag NFC (NDEF, record de texto no padrão `PAT-\d{3,}`, ex.: `PAT-001`).
+
+    - Na rede local: `http://<ip do celular>:8787`.
+    - Para o Google Apps Script: uma URL pública HTTPS de um túnel apontando
+      para a porta 8787 (ver docs/nfc/README.md).
+
+    Todas as rotas exigem `Authorization: Bearer <token>`. O token aparece na
+    tela "Teste NFC" do app. O `X-Correlation-Id` enviado volta no header e no
+    JSON; se o pedido não trouxer um, o app gera.
+servers:
+  - url: http://{ip}:8787
+    description: Celular na rede local
+    variables:
+      ip:
+        default: 192.168.0.104
+  - url: https://{tunel}
+    description: "Túnel HTTPS (ex.: cloudflared) para o Apps Script"
+    variables:
+      tunel:
+        default: exemplo.trycloudflare.com
+security:
+  - bearer: []
+paths:
+  /health:
+    get:
+      summary: Estado do serviço e do NFC
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Serviço no ar
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "401":
+          $ref: "#/components/responses/Erro"
+  /v1/nfc/read:
+    post:
+      summary: Espera a próxima tag encostada no celular e devolve o patrimônio
+      description: |
+        A requisição fica aberta até uma tag ser lida na tela "Teste NFC" ou até
+        o tempo acabar. Uma leitura por vez.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 35
+                  default: 30
+            example: {}
+      responses:
+        "200":
+          description: |
+            Tag lida. `valid` diz se havia um código de patrimônio válido;
+            se não houver, `patrimony` vem `null` e `texts` mostra o que havia na tag.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/CorrelationId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Leitura"
+        "400":
+          $ref: "#/components/responses/Erro"
+        "401":
+          $ref: "#/components/responses/Erro"
+        "408":
+          description: Nenhuma tag encostada no tempo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Já existe uma leitura esperando, ou o app está gravando uma tag
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "422":
+          description: A tag foi detectada mas não pôde ser lida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: Sem NFC, NFC desligado ou tela de NFC fechada no celular
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+  /v1/qr/read:
+    post:
+      summary: Leitura de QR Code pela câmera (ainda não integrada)
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "501":
+          $ref: "#/components/responses/Erro"
+        "401":
+          $ref: "#/components/responses/Erro"
+  /v1/audit/logs:
+    get:
+      summary: Chamadas registradas, da mais recente para a mais antiga
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            default: 0
+      responses:
+        "200":
+          description: Página do registro
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logs"
+        "400":
+          $ref: "#/components/responses/Erro"
+        "401":
+          $ref: "#/components/responses/Erro"
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._:-]{1,100}$"
+  headers:
+    CorrelationId:
+      schema:
+        type: string
+  responses:
+    Erro:
+      description: Erro
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Erro"
+  schemas:
+    Erro:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Token ausente ou inválido. Use Authorization Bearer <token>.
+        correlationId:
+          type: string
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+        version:
+          type: string
+        time:
+          type: string
+          format: date-time
+        nfcAvailable:
+          type: boolean
+        nfcEnabled:
+          type: boolean
+        nfcScreenOpen:
+          type: boolean
+          description: A tela "Teste NFC" está aberta (só ela consegue ler tags)
+        writing:
+          type: boolean
+        readPending:
+          type: boolean
+        correlationId:
+          type: string
+    Leitura:
+      type: object
+      properties:
+        success:
+          type: boolean
+        valid:
+          type: boolean
+        patrimony:
+          type: string
+          nullable: true
+          example: PAT-001
+        message:
+          type: string
+          example: Projetor PAT-001 identificado.
+        tagId:
+          type: string
+          example: 04A1B2C3D4E5F6
+        techList:
+          type: array
+          items:
+            type: string
+          example: [NfcA, MifareUltralight, Ndef]
+        texts:
+          type: array
+          items:
+            type: string
+          example: [PAT-001]
+        urls:
+          type: array
+          items:
+            type: string
+        readAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+    Logs:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              timestamp:
+                type: string
+                format: date-time
+              clientIp:
+                type: string
+              method:
+                type: string
+              path:
+                type: string
+              status:
+                type: integer
+              correlationId:
+                type: string
+              durationMs:
+                type: integer
+              patrimony:
+                type: string
+                nullable: true

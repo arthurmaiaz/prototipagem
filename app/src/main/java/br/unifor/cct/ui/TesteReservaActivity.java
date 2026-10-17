@@ -43,7 +43,7 @@ public class TesteReservaActivity extends Activity {
     private final ReservaApi api = ReservaApiFactory.obter();
     private ProfessorRepository professores;
 
-    private EditText etProfessorId;
+    private EditText etProfessorEmail;
     private EditText etProjetor;
     private EditText etData;
     private EditText etInicio;
@@ -52,6 +52,7 @@ public class TesteReservaActivity extends Activity {
     private Button btnCriar;
     private Button btnConsultar;
     private Button btnCancelar;
+    private Button btnDevolver;
     private Button btnSincronizar;
     private ProgressBar progressBar;
     private TextView tvRegistro;
@@ -64,7 +65,7 @@ public class TesteReservaActivity extends Activity {
         professores = new ProfessorRepository(this);
 
         TextView tvServidor = findViewById(R.id.tvServidor);
-        etProfessorId = findViewById(R.id.etProfessorId);
+        etProfessorEmail = findViewById(R.id.etProfessorEmail);
         etProjetor = findViewById(R.id.etProjetor);
         etData = findViewById(R.id.etData);
         etInicio = findViewById(R.id.etInicio);
@@ -73,6 +74,7 @@ public class TesteReservaActivity extends Activity {
         btnCriar = findViewById(R.id.btnCriar);
         btnConsultar = findViewById(R.id.btnConsultar);
         btnCancelar = findViewById(R.id.btnCancelar);
+        btnDevolver = findViewById(R.id.btnDevolver);
         btnSincronizar = findViewById(R.id.btnSincronizar);
         progressBar = findViewById(R.id.progressBar);
         tvRegistro = findViewById(R.id.tvRegistro);
@@ -93,15 +95,20 @@ public class TesteReservaActivity extends Activity {
             ocupado(true);
             api.cancelarReserva(id, callback("Cancelamento"));
         }));
+        btnDevolver.setOnClickListener(v -> comReservaId(id -> {
+            registrar("Registrando devolução da reserva " + id + "...");
+            ocupado(true);
+            api.registrarDevolucao(id, callback("Devolução"));
+        }));
         btnSincronizar.setOnClickListener(v -> sincronizar());
 
         mostrarProfessoresLocais();
     }
 
     private void criar() {
-        Integer professorId = inteiro(etProfessorId);
-        if (professorId == null) {
-            registrar("Erro: id do professor inválido.");
+        String professorEmail = Professor.normalizarEmail(etProfessorEmail.getText().toString());
+        if (!Professor.emailValido(professorEmail)) {
+            registrar("Erro: e-mail do professor inválido.");
             return;
         }
         String projetor = etProjetor.getText().toString().trim().toUpperCase(Locale.ROOT);
@@ -109,12 +116,12 @@ public class TesteReservaActivity extends Activity {
         String inicio = etInicio.getText().toString().trim();
         String fim = etFim.getText().toString().trim();
 
-        Professor local = professores.buscarPorId(professorId);
-        registrar("Criando reserva: professor " + professorId
+        Professor local = professores.buscarPorEmail(professorEmail);
+        registrar("Criando reserva: " + professorEmail
                 + (local == null ? "" : " (" + local.getNome() + ")")
                 + ", " + projetor + ", " + data + " " + inicio + "-" + fim + "...");
         ocupado(true);
-        api.criarReserva(professorId, projetor, data, inicio, fim, new ReservaCallback() {
+        api.criarReserva(professorEmail, projetor, data, inicio, fim, new ReservaCallback() {
             @Override
             public void onSucesso(ReservaResultado resultado) {
                 ocupado(false);
@@ -159,7 +166,7 @@ public class TesteReservaActivity extends Activity {
         }
         StringBuilder sb = new StringBuilder("Cadastro local:");
         for (Professor p : lista) {
-            sb.append("\n  ").append(p.getId()).append(" - ").append(p.getNome())
+            sb.append("\n  ").append(p.getEmail()).append(" - ").append(p.getNome())
                     .append(p.isAtivo() ? "" : " (inativo)");
         }
         registrar(sb.toString());
@@ -208,6 +215,7 @@ public class TesteReservaActivity extends Activity {
         btnCriar.setEnabled(!sim);
         btnConsultar.setEnabled(!sim);
         btnCancelar.setEnabled(!sim);
+        btnDevolver.setEnabled(!sim);
         btnSincronizar.setEnabled(!sim);
     }
 

@@ -30,12 +30,13 @@ import br.unifor.cct.model.Reserva;
  * do Google Apps Script (URL terminada em /exec).
  *
  * Toda chamada é um POST com JSON no corpo:
- *   { "acao": "criarReserva", "token": ..., "professorId": 1, "projetorId": "PAT-001",
+ *   { "acao": "criarReserva", "token": ..., "professorEmail": "ana@unifor.br", "projetorId": "PAT-001",
  *     "data": "2026-09-22", "inicio": "19:00", "fim": "21:00" }
- *   { "acao": "cancelarReserva" | "consultarReserva", "token": ..., "reservaId": 1000 }
+ *   { "acao": "cancelarReserva" | "consultarReserva" | "registrarDevolucao", "token": ..., "reservaId": 1000 }
+ *   { "acao": "registrarDevolucao", "token": ..., "projetorId": "PAT-001" }
  *   { "acao": "listarProfessores", "token": ... }
  * e a resposta é { "sucesso": ..., "reservaId": ..., "mensagem": ... }, mais
- * "professores": [{ id, nome, matricula, ativo }] no caso de listarProfessores.
+ * "professores": [{ email, nome, matricula, ativo }] no caso de listarProfessores.
  *
  * O token autentica o terminal. Vai no corpo, e não num header, porque o
  * doPost(e) do Apps Script não tem acesso aos headers da requisição.
@@ -81,18 +82,18 @@ public class AppsScriptClient implements ReservaApi, ProfessorApi {
     }
 
     @Override
-    public void criarReserva(int professorId, String projetorId, String data,
+    public void criarReserva(String professorEmail, String projetorId, String data,
                              String inicio, String fim, ReservaCallback callback) {
         Reserva reserva;
         try {
             // Valida localmente antes de gastar uma ida ao servidor.
-            reserva = Reserva.nova(professorId, projetorId, data, inicio, fim);
+            reserva = Reserva.nova(professorEmail, projetorId, data, inicio, fim);
         } catch (IllegalArgumentException e) {
             entrega.execute(() -> callback.onErro(e.getMessage()));
             return;
         }
         enviar(callback, corpo("criarReserva")
-                .put("professorId", reserva.getProfessorId())
+                .put("professorEmail", reserva.getProfessorEmail())
                 .put("projetorId", reserva.getProjetorCodigo())
                 .put("data", reserva.getDataTexto())
                 .put("inicio", reserva.getInicioTexto())
@@ -102,6 +103,16 @@ public class AppsScriptClient implements ReservaApi, ProfessorApi {
     @Override
     public void cancelarReserva(int reservaId, ReservaCallback callback) {
         enviar(callback, corpo("cancelarReserva").put("reservaId", reservaId));
+    }
+
+    @Override
+    public void registrarDevolucao(int reservaId, ReservaCallback callback) {
+        enviar(callback, corpo("registrarDevolucao").put("reservaId", reservaId));
+    }
+
+    @Override
+    public void devolverProjetor(String projetorId, ReservaCallback callback) {
+        enviar(callback, corpo("registrarDevolucao").put("projetorId", projetorId));
     }
 
     @Override
@@ -239,7 +250,7 @@ public class AppsScriptClient implements ReservaApi, ProfessorApi {
     }
 
     /**
-     * Lê a lista de professores. Entradas sem id ou sem nome são ignoradas,
+     * Lê a lista de professores. Entradas sem e-mail válido ou sem nome são ignoradas,
      * para uma linha mal preenchida na planilha não impedir a sincronização.
      */
     static List<Professor> interpretarProfessores(String texto) throws FalhaException {
@@ -252,11 +263,12 @@ public class AppsScriptClient implements ReservaApi, ProfessorApi {
             List<Professor> lista = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
                 JSONObject o = array.getJSONObject(i);
-                if (!o.has("id") || o.isNull("id") || o.optString("nome", "").trim().isEmpty()) {
+                if (!Professor.emailValido(o.optString("email", ""))
+                        || o.optString("nome", "").trim().isEmpty()) {
                     continue;
                 }
                 lista.add(new Professor(
-                        o.getInt("id"),
+                        o.getString("email"),
                         o.getString("nome"),
                         o.isNull("matricula") ? null : o.optString("matricula", null),
                         o.optBoolean("ativo", true)));

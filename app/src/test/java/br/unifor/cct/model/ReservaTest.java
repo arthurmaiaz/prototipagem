@@ -7,12 +7,15 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.time.LocalDateTime;
+
 public class ReservaTest {
 
     @Test
     public void novaConverteFormatoDaApi() {
-        Reserva r = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva r = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
         assertNull(r.getId());
+        assertEquals("ana@unifor.br", r.getProfessorEmail());
         assertEquals(StatusReserva.ATIVA, r.getStatus());
         assertEquals("2026-09-22", r.getDataTexto());
         assertEquals("19:00", r.getInicioTexto());
@@ -21,47 +24,79 @@ public class ReservaTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejeitaFimAntesDoInicio() {
-        Reserva.nova(1, "PAT-001", "2026-09-22", "21:00", "19:00");
+        Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "21:00", "19:00");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejeitaDataForaDoFormato() {
-        Reserva.nova(1, "PAT-001", "22/09/2026", "19:00", "21:00");
+        Reserva.nova("ana@unifor.br", "PAT-001", "22/09/2026", "19:00", "21:00");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejeitaCodigoDeProjetorInvalido() {
-        Reserva.nova(1, "projetor 1", "2026-09-22", "19:00", "21:00");
+        Reserva.nova("ana@unifor.br", "projetor 1", "2026-09-22", "19:00", "21:00");
     }
 
     @Test
     public void sobreposicaoConflita() {
-        Reserva a = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
-        Reserva b = Reserva.nova(2, "PAT-001", "2026-09-22", "20:00", "22:00");
+        Reserva a = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva b = Reserva.nova("bruno@unifor.br", "PAT-001", "2026-09-22", "20:00", "22:00");
         assertTrue(a.conflitaCom(b));
         assertTrue(b.conflitaCom(a));
     }
 
     @Test
     public void horariosEncostadosNaoConflitam() {
-        Reserva a = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
-        Reserva b = Reserva.nova(2, "PAT-001", "2026-09-22", "21:00", "22:00");
+        Reserva a = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva b = Reserva.nova("bruno@unifor.br", "PAT-001", "2026-09-22", "21:00", "22:00");
         assertFalse(a.conflitaCom(b));
     }
 
     @Test
     public void projetorOuDiaDiferenteNaoConflita() {
-        Reserva a = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
-        assertFalse(a.conflitaCom(Reserva.nova(2, "PAT-002", "2026-09-22", "19:00", "21:00")));
-        assertFalse(a.conflitaCom(Reserva.nova(2, "PAT-001", "2026-09-23", "19:00", "21:00")));
+        Reserva a = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        assertFalse(a.conflitaCom(Reserva.nova("bruno@unifor.br", "PAT-002", "2026-09-22", "19:00", "21:00")));
+        assertFalse(a.conflitaCom(Reserva.nova("bruno@unifor.br", "PAT-001", "2026-09-23", "19:00", "21:00")));
     }
 
     @Test
     public void reservaCanceladaNaoConflita() {
-        Reserva a = Reserva.nova(1, "PAT-001", "2026-09-22", "19:00", "21:00");
-        Reserva b = Reserva.nova(2, "PAT-001", "2026-09-22", "19:00", "21:00")
+        Reserva a = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva b = Reserva.nova("bruno@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00")
                 .comStatus(StatusReserva.CANCELADA);
         assertFalse(a.conflitaCom(b));
+    }
+
+    @Test
+    public void emailENormalizado() {
+        Reserva r = Reserva.nova("  Ana@Unifor.BR ", "PAT-001", "2026-09-22", "19:00", "21:00");
+        assertEquals("ana@unifor.br", r.getProfessorEmail());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejeitaEmailInvalido() {
+        Reserva.nova("ana", "PAT-001", "2026-09-22", "19:00", "21:00");
+    }
+
+    @Test
+    public void reservaFinalizadaNaoConflita() {
+        Reserva a = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        Reserva b = Reserva.nova("bruno@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00")
+                .comStatus(StatusReserva.FINALIZADA);
+        assertFalse(a.conflitaCom(b));
+    }
+
+    @Test
+    public void duracaoEmMinutos() {
+        assertEquals(150, Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:30").getDuracaoMinutos());
+    }
+
+    @Test
+    public void jaTerminouComparaComOFim() {
+        Reserva r = Reserva.nova("ana@unifor.br", "PAT-001", "2026-09-22", "19:00", "21:00");
+        assertFalse(r.jaTerminou(LocalDateTime.of(2026, 9, 22, 20, 0)));
+        assertTrue(r.jaTerminou(LocalDateTime.of(2026, 9, 22, 21, 0)));
+        assertTrue(r.jaTerminou(LocalDateTime.of(2026, 9, 23, 8, 0)));
     }
 
     @Test

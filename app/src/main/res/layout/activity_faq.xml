@@ -255,7 +255,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="Não. Em conformidade estrita com a LGPD, o template da digital fica armazenado exclusivamente no BiometricDatabase (cifrado no aparelho). A planilha e os servidores recebem apenas o identificador numérico (professorId) para vincular à reserva, sem nenhum dado biométrico."
+                    android:text="Não. Em conformidade estrita com a LGPD, o template da digital fica armazenado exclusivamente no BiometricDatabase (cifrado no aparelho). A planilha e os servidores recebem apenas o e-mail do professor (professorEmail) para vincular à reserva, sem nenhum dado biométrico."
                     android:textColor="@color/unifor_text_secondary"
                     android:textSize="13sp"
                     android:visibility="gone" />

@@ -62,8 +62,8 @@ public class TesteBiometriaActivity extends Activity {
                     btnIdentificar.setEnabled(true);
 
                     if (resultado.isSucesso()) {
-                        tvStatus.setText("Professor identificado (id="
-                                + resultado.getProfessorId() + ")\n"
+                        tvStatus.setText("Professor identificado ("
+                                + resultado.getProfessorEmail() + ")\n"
                                 + resultado.getMensagem());
                     } else {
                         tvStatus.setText(resultado.getMensagem());

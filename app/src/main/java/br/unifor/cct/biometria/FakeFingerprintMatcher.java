@@ -6,7 +6,8 @@ import android.os.Looper;
 public class FakeFingerprintMatcher implements FingerprintMatcher {
 
     private static final long LATENCIA_SIMULADA_MS = 400;
-    private static final int PROFESSOR_ID_FAKE = 1;
+    /** E-mail que o fake sempre identifica; o MockReservaApi tem o mesmo professor. */
+    public static final String EMAIL_TESTE = "professor.teste@unifor.br";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -16,7 +17,7 @@ public class FakeFingerprintMatcher implements FingerprintMatcher {
             if (template == null || template.getDados() == null || template.getDados().length == 0) {
                 callback.onResultado(new IdentificationResult(false, null, 0));
             } else {
-                callback.onResultado(new IdentificationResult(true, PROFESSOR_ID_FAKE, 100));
+                callback.onResultado(new IdentificationResult(true, EMAIL_TESTE, 100));
             }
         }, LATENCIA_SIMULADA_MS);
     }

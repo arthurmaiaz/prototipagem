@@ -20,16 +20,16 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:labelFor="@id/etProfessorId"
-            android:text="Professor (id)" />
+            android:labelFor="@id/etProfessorEmail"
+            android:text="Professor (e-mail)" />
 
         <EditText
-            android:id="@+id/etProfessorId"
+            android:id="@+id/etProfessorEmail"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:hint="nome@unifor.br"
             android:importantForAutofill="no"
-            android:inputType="number"
-            android:text="1" />
+            android:inputType="textEmailAddress" />
 
         <TextView
             android:layout_width="match_parent"
@@ -149,6 +149,12 @@
                 android:layout_weight="1"
                 android:text="Cancelar reserva" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnDevolver"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Registrar devolução" />
 
         <Button
             android:id="@+id/btnSincronizar"

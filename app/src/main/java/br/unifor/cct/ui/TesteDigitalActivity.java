@@ -1,24 +1,31 @@
 package br.unifor.cct.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
 import br.unifor.cct.BuildConfig;
 import br.unifor.cct.R;
+import br.unifor.cct.admin.PinAdministrador;
+import br.unifor.cct.admin.PinAdministrador.Verificacao;
 import br.unifor.cct.biometria.BiometriaCallback;
 import br.unifor.cct.biometria.BiometriaService;
 import br.unifor.cct.biometria.BiometricDatabase;
@@ -43,6 +50,9 @@ import br.unifor.cct.storage.ProfessorRepository;
  * As digitais ficam no BiometricDatabase (cifrado, só no aparelho). Os
  * nomes vêm do ProfessorRepository: sincronize antes na TesteReservaActivity
  * para vê-los aqui.
+ *
+ * Cadastrar e remover pedem o PIN da coordenação (PinAdministrador). No
+ * primeiro uso a tela pede para criar o PIN. Identificar não pede PIN.
  */
 public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener {
 
@@ -52,19 +62,22 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private BiometricDatabase banco;
     private CadastroDigitalNitgen cadastro;
     private BiometriaService biometria;
+    private NitgenMatcher matcher;
     private ProfessorRepository professores;
+    private PinAdministrador pin;
 
     private boolean ocupado;
-    private boolean indiceCarregado;
+    private boolean digitaisCarregadas;
     private boolean abertaPeloLeitor;
 
     private TextView tvEstado;
     private TextView tvInstrucao;
-    private EditText etProfessorId;
+    private EditText etProfessorEmail;
     private TextView tvNomeProfessor;
     private Button btnAbrir;
     private Button btnCadastrar;
     private Button btnRemover;
+    private Button btnTrocarPin;
     private Button btnIdentificar;
     private Button btnVerPerfil;
     private Button btnCancelar;
@@ -72,7 +85,7 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private TextView tvQualidade;
     private TextView tvRegistro;
     private View btnVoltarDigital;
-    private Integer professorIdentificadoId;
+    private String professorIdentificadoEmail;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,11 +94,12 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
         tvEstado = findViewById(R.id.tvEstado);
         tvInstrucao = findViewById(R.id.tvInstrucao);
-        etProfessorId = findViewById(R.id.etProfessorId);
+        etProfessorEmail = findViewById(R.id.etProfessorEmail);
         tvNomeProfessor = findViewById(R.id.tvNomeProfessor);
         btnAbrir = findViewById(R.id.btnAbrir);
         btnCadastrar = findViewById(R.id.btnCadastrar);
         btnRemover = findViewById(R.id.btnRemover);
+        btnTrocarPin = findViewById(R.id.btnTrocarPin);
         btnIdentificar = findViewById(R.id.btnIdentificar);
         btnVerPerfil = findViewById(R.id.btnVerPerfil);
         btnCancelar = findViewById(R.id.btnCancelar);
@@ -99,9 +113,9 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         }
         if (btnVerPerfil != null) {
             btnVerPerfil.setOnClickListener(v -> {
-                if (professorIdentificadoId != null) {
+                if (professorIdentificadoEmail != null) {
                     Intent intent = new Intent(this, PerfilActivity.class);
-                    intent.putExtra("professorId", professorIdentificadoId);
+                    intent.putExtra("professorEmail", professorIdentificadoEmail);
                     startActivity(intent);
                 }
             });
@@ -109,7 +123,8 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
         abertaPeloLeitor = UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(getIntent().getAction());
         professores = new ProfessorRepository(this);
-        etProfessorId.addTextChangedListener(new TextWatcher() {
+        pin = PinAdministrador.padrao(this);
+        etProfessorEmail.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
@@ -126,8 +141,9 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         mostrarNome();
 
         btnAbrir.setOnClickListener(v -> abrirOuFechar());
-        btnCadastrar.setOnClickListener(v -> cadastrar());
-        btnRemover.setOnClickListener(v -> remover());
+        btnCadastrar.setOnClickListener(v -> comoAdministrador(this::cadastrar));
+        btnRemover.setOnClickListener(v -> comoAdministrador(this::remover));
+        btnTrocarPin.setOnClickListener(v -> trocarPin());
         btnIdentificar.setOnClickListener(v -> identificar());
         btnCancelar.setOnClickListener(v -> sdk.cancelarCaptura());
 
@@ -145,19 +161,23 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         }
         sdk.setListener(this);
         cadastro = new CadastroDigitalNitgen(sdk, banco);
-        NitgenMatcher matcher = new NitgenMatcher(sdk);
+        matcher = new NitgenMatcher(sdk, banco);
         biometria = new BiometriaService(new HamsterDxReader(sdk), matcher);
 
         tvEstado.setText("SDK " + sdk.getVersao() + ". Carregando digitais...");
-        matcher.carregar(banco, new NitgenSdk.Resultado<Integer>() {
+        sdk.executar(banco::quantidade, new NitgenSdk.Resultado<Integer>() {
             @Override
             public void onSucesso(Integer quantidade) {
-                indiceCarregado = true;
+                digitaisCarregadas = true;
                 if (abertaPeloLeitor && !sdk.isConectado()) {
                     registrar("Leitor conectado: abrindo...");
                     sdk.abrir();
                 }
-                tvEstado.setText("SDK " + sdk.getVersao() + ". " + quantidade + " digital(is) cadastrada(s).");
+                mostrarOcupacao();
+                if (banco.digitaisDescartadas() > 0) {
+                    registrar("Aviso: " + banco.digitaisDescartadas() + " digital(is) do formato "
+                            + "antigo (id numérico) foram descartadas. Cadastre de novo pelo e-mail.");
+                }
                 if (banco.houveFalhaAoCarregar()) {
                     registrar("Aviso: o arquivo de digitais não pôde ser lido e foi ignorado. "
                             + "As digitais precisam ser cadastradas de novo.");
@@ -178,10 +198,17 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())
-                && sdk != null && indiceCarregado && !sdk.isConectado()) {
+                && sdk != null && digitaisCarregadas && !sdk.isConectado()) {
             registrar("Leitor conectado: abrindo...");
             sdk.abrir();
         }
+    }
+
+    /** Saiu da tela: a próxima ação de administrador pede o PIN de novo. */
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!ocupado) pin.encerrar();
     }
 
     @Override
@@ -204,10 +231,10 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     }
 
     private void cadastrar() {
-        Integer id = professorId();
-        if (id == null) return;
-        inicio("Cadastrando a digital do professor " + id + "...");
-        cadastro.cadastrar(id, new CadastroDigitalNitgen.Callback() {
+        String email = professorEmail();
+        if (email == null) return;
+        inicio("Cadastrando a digital de " + email + "...");
+        cadastro.cadastrar(email, new CadastroDigitalNitgen.Callback() {
             @Override
             public void onEtapa(String instrucao) {
                 tvInstrucao.setText(instrucao);
@@ -227,10 +254,10 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     }
 
     private void remover() {
-        Integer id = professorId();
-        if (id == null) return;
-        inicio("Removendo a digital do professor " + id + "...");
-        cadastro.remover(id, new CadastroDigitalNitgen.Callback() {
+        String email = professorEmail();
+        if (email == null) return;
+        inicio("Removendo a digital de " + email + "...");
+        cadastro.remover(email, new CadastroDigitalNitgen.Callback() {
             @Override
             public void onEtapa(String instrucao) {
             }
@@ -250,19 +277,20 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private void identificar() {
         inicio("Identificando...");
         if (btnVerPerfil != null) btnVerPerfil.setVisibility(View.GONE);
-        professorIdentificadoId = null;
+        professorIdentificadoEmail = null;
         tvInstrucao.setText("Coloque o dedo no leitor.");
         biometria.identificarProfessor(new BiometriaCallback() {
             @Override
             public void onSucesso(ResultadoBiometria resultado) {
                 if (resultado.isSucesso()) {
-                    professorIdentificadoId = resultado.getProfessorId();
+                    professorIdentificadoEmail = resultado.getProfessorEmail();
                     if (btnVerPerfil != null) btnVerPerfil.setVisibility(View.VISIBLE);
-                    Professor p = professores.buscarPorId(resultado.getProfessorId());
-                    fim("IDENTIFICADO: professor " + resultado.getProfessorId()
-                            + (p == null ? " (nome não sincronizado)" : " - " + p.getNome()));
+                    Professor p = professores.buscarPorEmail(resultado.getProfessorEmail());
+                    fim("IDENTIFICADO: " + resultado.getProfessorEmail()
+                            + (p == null ? " (nome não sincronizado)" : " - " + p.getNome())
+                            + tempoBusca());
                 } else {
-                    fim("NÃO IDENTIFICADO: " + resultado.getMensagem());
+                    fim("NÃO IDENTIFICADO: " + resultado.getMensagem() + tempoBusca());
                 }
             }
 
@@ -271,6 +299,174 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
                 fim("Erro: " + mensagem);
             }
         });
+    }
+
+    /** Tempo só da busca nos arrays, sem a captura do dedo. */
+    private String tempoBusca() {
+        long ms = matcher.getUltimaBuscaMs();
+        return ms < 0 ? "" : " [busca: " + ms + " ms]";
+    }
+
+    // ------------------------------------------------- PIN da coordenação
+
+    /** Roda a ação se o PIN já foi digitado há pouco; senão pede o PIN antes. */
+    private void comoAdministrador(Runnable acao) {
+        if (pin.liberado()) {
+            pin.renovar();
+            acao.run();
+        } else if (!pin.temPin()) {
+            criarPin(acao);
+        } else {
+            pedirPin(acao);
+        }
+    }
+
+    private void criarPin(Runnable depois) {
+        EditText novo = campoPin("Novo PIN (" + PinAdministrador.TAMANHO_MINIMO + " a "
+                + PinAdministrador.TAMANHO_MAXIMO + " dígitos)");
+        EditText repetir = campoPin("Repita o PIN");
+        dialogo("Criar PIN da coordenação",
+                "Este terminal ainda não tem PIN. Só quem souber o PIN poderá cadastrar "
+                        + "e remover digitais. Se ele for esquecido, será preciso limpar os "
+                        + "dados do app, o que apaga todas as digitais.",
+                "Criar", () -> {
+                    String a = novo.getText().toString();
+                    if (!PinAdministrador.formatoValido(a)) {
+                        registrar("Erro: o PIN precisa ter de " + PinAdministrador.TAMANHO_MINIMO
+                                + " a " + PinAdministrador.TAMANHO_MAXIMO + " dígitos.");
+                    } else if (!a.equals(repetir.getText().toString())) {
+                        registrar("Erro: os dois PINs não são iguais.");
+                    } else {
+                        emSegundoPlano(() -> {
+                            pin.definir(a);
+                            return Verificacao.CORRETO;
+                        }, v -> {
+                            registrar("PIN da coordenação criado.");
+                            depois.run();
+                        });
+                    }
+                }, novo, repetir);
+    }
+
+    private void pedirPin(Runnable depois) {
+        if (pin.bloqueado()) {
+            avisarBloqueio();
+            return;
+        }
+        EditText campo = campoPin("PIN");
+        dialogo("PIN da coordenação", "Cadastrar e remover digitais exige o PIN.", "Confirmar",
+                () -> emSegundoPlano(() -> pin.verificar(campo.getText().toString()), v -> {
+                    if (v == Verificacao.CORRETO) {
+                        depois.run();
+                    } else {
+                        avisarErroPin(v);
+                    }
+                }), campo);
+    }
+
+    private void trocarPin() {
+        if (!pin.temPin()) {
+            criarPin(() -> { });
+            return;
+        }
+        if (pin.bloqueado()) {
+            avisarBloqueio();
+            return;
+        }
+        EditText atual = campoPin("PIN atual");
+        EditText novo = campoPin("Novo PIN");
+        EditText repetir = campoPin("Repita o novo PIN");
+        dialogo("Trocar PIN da coordenação", null, "Trocar", () -> {
+            String n = novo.getText().toString();
+            if (!PinAdministrador.formatoValido(n)) {
+                registrar("Erro: o novo PIN precisa ter de " + PinAdministrador.TAMANHO_MINIMO
+                        + " a " + PinAdministrador.TAMANHO_MAXIMO + " dígitos.");
+            } else if (!n.equals(repetir.getText().toString())) {
+                registrar("Erro: os dois PINs novos não são iguais.");
+            } else {
+                emSegundoPlano(() -> pin.trocar(atual.getText().toString(), n), v -> {
+                    if (v == Verificacao.CORRETO) {
+                        registrar("PIN da coordenação trocado.");
+                    } else {
+                        avisarErroPin(v);
+                    }
+                });
+            }
+        }, atual, novo, repetir);
+    }
+
+    private void avisarErroPin(Verificacao v) {
+        if (v == Verificacao.BLOQUEADO) {
+            avisarBloqueio();
+        } else {
+            registrar("PIN incorreto. Restam " + pin.tentativasRestantes() + " tentativa(s).");
+        }
+    }
+
+    private void avisarBloqueio() {
+        long minutos = Math.max(1, (pin.tempoBloqueioRestante().getSeconds() + 59) / 60);
+        registrar("Muitas tentativas erradas. Tente de novo em " + minutos + " minuto(s).");
+    }
+
+    private EditText campoPin(String dica) {
+        EditText campo = new EditText(this);
+        campo.setHint(dica);
+        campo.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        campo.setFilters(new InputFilter[] {
+                new InputFilter.LengthFilter(PinAdministrador.TAMANHO_MAXIMO) });
+        return campo;
+    }
+
+    private void dialogo(String titulo, String mensagem, String botao, Runnable aoConfirmar,
+                         EditText... campos) {
+        LinearLayout caixa = new LinearLayout(this);
+        caixa.setOrientation(LinearLayout.VERTICAL);
+        int margem = (int) (20 * getResources().getDisplayMetrics().density);
+        caixa.setPadding(margem, margem / 2, margem, 0);
+        for (EditText campo : campos) caixa.addView(campo);
+        new AlertDialog.Builder(this)
+                .setTitle(titulo)
+                .setMessage(mensagem)
+                .setView(caixa)
+                .setPositiveButton(botao, (d, w) -> aoConfirmar.run())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    interface TarefaPin {
+        Verificacao executar() throws IOException;
+    }
+
+    interface AoTerminar {
+        void aceitar(Verificacao v);
+    }
+
+    /** O PBKDF2 leva uma fração de segundo: fica fora da thread da tela. */
+    private void emSegundoPlano(TarefaPin tarefa, AoTerminar aoTerminar) {
+        btnCadastrar.setEnabled(false);
+        btnRemover.setEnabled(false);
+        btnTrocarPin.setEnabled(false);
+        new Thread(() -> {
+            Verificacao v;
+            String erro = null;
+            try {
+                v = tarefa.executar();
+            } catch (IOException e) {
+                v = null;
+                erro = e.getMessage();
+            }
+            Verificacao resultado = v;
+            String mensagemErro = erro;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                atualizarBotoes();
+                if (resultado == null) {
+                    registrar("Erro ao gravar o PIN: " + mensagemErro);
+                } else {
+                    aoTerminar.aceitar(resultado);
+                }
+            });
+        }, "pin-administrador").start();
     }
 
     // ---------------------------------------------------- NitgenSdk.Listener
@@ -307,27 +503,31 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         ocupado = false;
         tvInstrucao.setText("");
         registrar(mensagem);
+        if (digitaisCarregadas) mostrarOcupacao();
         atualizarBotoes();
     }
 
-    private Integer professorId() {
-        try {
-            int id = Integer.parseInt(etProfessorId.getText().toString().trim());
-            if (id > 0) return id;
-        } catch (NumberFormatException ignorado) {
-            // cai no erro abaixo
+    /** Digitais por array e se a busca está em paralelo. */
+    private void mostrarOcupacao() {
+        int[] porArray = banco.quantidadePorArray();
+        StringBuilder texto = new StringBuilder("SDK " + sdk.getVersao() + ". Digitais:");
+        for (int a = 0; a < porArray.length; a++) {
+            texto.append(" array ").append(a + 1).append(' ').append(porArray[a])
+                    .append('/').append(banco.tamanhoArray()).append(a + 1 < porArray.length ? ";" : ".");
         }
-        registrar("Erro: informe um id de professor maior que zero.");
+        texto.append('\n').append(matcher.descricaoBusca());
+        tvEstado.setText(texto);
+    }
+
+    private String professorEmail() {
+        String email = Professor.normalizarEmail(etProfessorEmail.getText().toString());
+        if (Professor.emailValido(email)) return email;
+        registrar("Erro: informe o e-mail do professor (ex.: nome@unifor.br).");
         return null;
     }
 
     private void mostrarNome() {
-        Professor p;
-        try {
-            p = professores.buscarPorId(Integer.parseInt(etProfessorId.getText().toString().trim()));
-        } catch (NumberFormatException e) {
-            p = null;
-        }
+        Professor p = professores.buscarPorEmail(etProfessorEmail.getText().toString());
         tvNomeProfessor.setText(p == null ? "Professor não encontrado no cadastro local"
                 : p.getNome() + (p.isAtivo() ? "" : " (inativo)"));
     }
@@ -335,13 +535,14 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private void atualizarBotoes() {
         boolean iniciado = sdk != null;
         boolean conectado = iniciado && sdk.isConectado();
-        boolean pronto = conectado && indiceCarregado && !ocupado;
+        boolean pronto = conectado && digitaisCarregadas && !ocupado;
         btnAbrir.setText(conectado ? "Fechar leitor" : "Abrir leitor");
         btnAbrir.setEnabled(iniciado && !ocupado);
         btnCadastrar.setEnabled(pronto);
         btnIdentificar.setEnabled(pronto);
-        btnRemover.setEnabled(iniciado && indiceCarregado && !ocupado);
+        btnRemover.setEnabled(iniciado && digitaisCarregadas && !ocupado);
         btnCancelar.setEnabled(ocupado);
+        btnTrocarPin.setEnabled(!ocupado);
     }
 
     /** Linha nova no topo do registro, com o horário. */

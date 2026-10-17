@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.nitgen.SDK.AndroidBSP.NBioBSPJNI;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,6 +25,11 @@ import java.util.concurrent.Executors;
  * executar" são síncronos e não podem ser chamados de outro lugar.
  *
  * Os templates circulam como texto (TextFIR, base64 gerado pelo SDK).
+ * A busca de quem colocou o dedo não usa o IndexSearch do SDK: o
+ * BiometricDatabase percorre os arrays de digitais e chama mesmaDigital
+ * para cada posição. Para percorrer os arrays ao mesmo tempo, cada thread
+ * extra usa a sua própria instância do SDK (criarComparacoes), só para
+ * comparar: a instância principal nunca é usada por duas threads.
  * A imagem da digital nunca sai desta classe, a não ser para o Listener
  * mostrar na tela durante a captura.
  *
@@ -50,21 +56,12 @@ public class NitgenSdk {
     /** Mínimo entre as leituras do cadastro, mesmo que o leitor diga que não há dedo. */
     private static final int INTERVALO_MINIMO_MS = 700;
     /**
-     * O IndexSearch só aceita uma amostra por id (o segundo AddFIR com o mesmo
-     * id devolve DUPLICATED_ID). Por isso cada amostra entra no índice com um
-     * id próprio: professorId * AMOSTRAS_POR_ID + número da amostra
-     * (professor 1 vira 101 e 102), e a busca converte de volta.
-     */
-    private static final int AMOSTRAS_POR_ID = 100;
-    /**
-     * Nível de segurança da busca 1:N e da comparação 1:1 (escala de 1 a 9).
+     * Nível de segurança da comparação 1:1 (escala de 1 a 9).
      * Com NORMAL (5), o indicador de uma pessoa foi reconhecido como o de
      * outra nos testes. Confundir professores é pior do que pedir para
      * colocar o dedo de novo, então fica em HIGH.
      */
     private static final int NIVEL_SEGURANCA = NBioBSPJNI.FIR_SECURITY_LEVEL.HIGH;
-    /** Tempo máximo da busca 1:N, em ms (o exemplo da Nitgen usa 2000). */
-    private static final int TIMEOUT_BUSCA_MS = 5_000;
     private static final String TAG = "NitgenSdk";
 
     /** Eventos do leitor, sempre entregues na thread principal. */
@@ -88,7 +85,11 @@ public class NitgenSdk {
     }
 
     private final NBioBSPJNI bsp;
-    private final NBioBSPJNI.IndexSearch indice;
+    private final Context contexto;
+    private final String serial;
+    private final List<Comparacao> comparacoes = new ArrayList<>();
+    /** Por que a última instância extra falhou (só para a tela de teste). */
+    private volatile String falhaComparacao;
     private final ExecutorService thread = Executors.newSingleThreadExecutor();
     private final Handler principal = new Handler(Looper.getMainLooper());
 
@@ -103,16 +104,17 @@ public class NitgenSdk {
         if (serial == null || serial.isEmpty()) {
             throw new NitgenException("Falta nitgen.serial no local.properties.");
         }
+        this.contexto = context.getApplicationContext();
+        this.serial = serial;
         long inicio = SystemClock.elapsedRealtime();
-        bsp = new NBioBSPJNI(serial, context.getApplicationContext(), callback);
+        bsp = new NBioBSPJNI(serial, contexto, callback);
         Log.d(TAG, "SDK iniciado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
         if (bsp.IsErrorOccured()) {
             String erro = codigo(bsp.GetErrorCode());
             bsp.dispose();
             throw new NitgenException("O SDK do leitor não iniciou (" + erro + ").");
         }
-        indice = bsp.new IndexSearch();
-        configurar();
+        configurar(bsp);
     }
 
     public void setListener(Listener listener) {
@@ -151,9 +153,10 @@ public class NitgenSdk {
         bsp.CaptureCancel();
         thread.execute(() -> {
             long inicio = SystemClock.elapsedRealtime();
-            indice.dispose();
             bsp.releaseDevice();
             bsp.dispose();
+            for (Comparacao c : comparacoes) c.liberar();
+            comparacoes.clear();
             Log.d(TAG, "SDK liberado em " + (SystemClock.elapsedRealtime() - inicio) + " ms");
         });
         thread.shutdown();
@@ -184,8 +187,8 @@ public class NitgenSdk {
      * Captura uma digital e devolve o template em texto.
      *
      * @param finalidade NBioBSPJNI.FIR_PURPOSE: ENROLL para cadastrar e para
-     *                   buscar no índice (como no exemplo da Nitgen), VERIFY
-     *                   para a comparação 1:1
+     *                   identificar (comparada com as amostras do cadastro,
+     *                   que também são ENROLL), VERIFY para a comparação 1:1
      */
     public String capturar(int finalidade) throws NitgenException {
         return capturar(finalidade, 0);
@@ -273,71 +276,84 @@ public class NitgenSdk {
 
     /** Compara dois templates 1:1. */
     public boolean mesmaDigital(String a, String b) throws NitgenException {
+        return comparar(bsp, a, b);
+    }
+
+    /**
+     * Cria até `quantas` instâncias extras do SDK, cada uma para ser usada
+     * por uma thread da busca em paralelo. Para na primeira que falhar: o
+     * SDK beta pode não aceitar mais de uma instância, e aí a busca fica
+     * sequencial. As instâncias são liberadas em encerrar().
+     */
+    public List<Comparacao> criarComparacoes(int quantas) {
+        falhaComparacao = null;
+        while (comparacoes.size() < quantas) {
+            NBioBSPJNI extra;
+            try {
+                extra = new NBioBSPJNI(serial, contexto, SEM_EVENTOS);
+            } catch (RuntimeException | UnsatisfiedLinkError e) {
+                Log.w(TAG, "Instância extra do SDK não foi criada: " + e);
+                falhaComparacao = e.toString();
+                break;
+            }
+            if (extra.IsErrorOccured()) {
+                Log.w(TAG, "Instância extra do SDK com erro " + codigo(extra.GetErrorCode()));
+                falhaComparacao = "erro " + codigo(extra.GetErrorCode());
+                extra.dispose();
+                break;
+            }
+            configurar(extra);
+            comparacoes.add(new Comparacao(extra));
+        }
+        return new ArrayList<>(comparacoes);
+    }
+
+    /** Por que a última instância extra não foi criada (null se não falhou). */
+    public String getFalhaComparacao() {
+        return falhaComparacao;
+    }
+
+    /** Libera as instâncias extras (ex.: a busca em paralelo não passou na conferência). */
+    public void liberarComparacoes() {
+        for (Comparacao c : comparacoes) c.liberar();
+        comparacoes.clear();
+    }
+
+    /**
+     * Instância extra do SDK, só para VerifyMatch. Cada uma deve ser usada
+     * por uma thread de cada vez.
+     */
+    public static final class Comparacao {
+        private final NBioBSPJNI bsp;
+
+        private Comparacao(NBioBSPJNI bsp) {
+            this.bsp = bsp;
+        }
+
+        public boolean mesmaDigital(String a, String b) throws NitgenException {
+            return comparar(bsp, a, b);
+        }
+
+        private void liberar() {
+            bsp.dispose();
+        }
+    }
+
+    // ------------------------------------------------------------ internos
+
+    private static boolean comparar(NBioBSPJNI bsp, String a, String b) throws NitgenException {
         // O SDK escreve o resultado dentro deste objeto via JNI. Precisa ser
         // uma instância nova: nunca Boolean.FALSE, que é compartilhado.
         @SuppressWarnings({"deprecation", "BooleanConstructorCall", "UseValueOf"})
         Boolean igual = new Boolean(false);
-        bsp.VerifyMatch(entrada(a), entrada(b), igual, null);
-        Log.d(TAG, "VerifyMatch " + codigo(bsp.GetErrorCode()) + ", igual=" + igual);
+        bsp.VerifyMatch(entrada(bsp, a), entrada(bsp, b), igual, null);
         if (bsp.IsErrorOccured()) {
             throw new NitgenException("Falha ao comparar digitais (" + codigo(bsp.GetErrorCode()) + ").");
         }
         return igual;
     }
 
-    /** Esvazia o índice de busca 1:N (só memória; o BiometricDatabase não muda). */
-    public void limparIndice() throws NitgenException {
-        int erro = indice.ClearDB();
-        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-            throw new NitgenException("Falha ao limpar o índice de digitais (" + codigo(erro) + ").");
-        }
-    }
-
-    /** Coloca (ou troca) a digital do professor no índice de busca, com todas as amostras. */
-    public void indexar(int professorId, List<String> amostras) throws NitgenException {
-        if (amostras.size() >= AMOSTRAS_POR_ID) {
-            throw new NitgenException("Amostras demais para o professor " + professorId + ".");
-        }
-        removerDoIndice(professorId);
-        for (int i = 0; i < amostras.size(); i++) {
-            int idNoIndice = professorId * AMOSTRAS_POR_ID + i + 1;
-            NBioBSPJNI.IndexSearch.SAMPLE_INFO info = indice.new SAMPLE_INFO();
-            int erro = indice.AddFIR(entrada(amostras.get(i)), idNoIndice, info);
-            Log.d(TAG, "AddFIR(" + idNoIndice + ") " + codigo(erro));
-            if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-                throw new NitgenException("Falha ao indexar a digital do professor "
-                        + professorId + " (" + codigo(erro) + ").");
-            }
-        }
-    }
-
-    public void removerDoIndice(int professorId) {
-        // RemoveUser devolve erro para ids que não estão no índice; nesse caso
-        // não há o que remover. Cobre todas as amostras possíveis do professor.
-        for (int i = 1; i < AMOSTRAS_POR_ID; i++) {
-            indice.RemoveUser(professorId * AMOSTRAS_POR_ID + i);
-        }
-    }
-
-    /** Busca 1:N. @return o professorId, ou null se a digital não estiver cadastrada. */
-    public Integer identificar(String template) throws NitgenException {
-        NBioBSPJNI.IndexSearch.FP_INFO info = indice.new FP_INFO();
-        // A versão sem timeout repassa -1 ao SDK; o exemplo da Nitgen sempre informa um.
-        int erro = indice.Identify(entrada(template), NIVEL_SEGURANCA, info, TIMEOUT_BUSCA_MS);
-        Log.d(TAG, "Identify " + codigo(erro) + ", ID=" + info.ID);
-        if (erro == NBioBSPJNI.ERROR.NBioAPIERROR_INDEXSEARCH_IDENTIFY_FAIL) {
-            return null;
-        }
-        if (erro != NBioBSPJNI.ERROR.NBioAPIERROR_NONE) {
-            throw new NitgenException("Falha na busca da digital (" + codigo(erro) + ").");
-        }
-        // O SDK usa 0 para "nenhum"; os ids no índice começam em 101.
-        return info.ID == 0 ? null : info.ID / AMOSTRAS_POR_ID;
-    }
-
-    // ------------------------------------------------------------ internos
-
-    private NBioBSPJNI.INPUT_FIR entrada(String template) {
+    private static NBioBSPJNI.INPUT_FIR entrada(NBioBSPJNI bsp, String template) {
         NBioBSPJNI.FIR_TEXTENCODE texto = bsp.new FIR_TEXTENCODE();
         texto.TextFIR = template;
         NBioBSPJNI.INPUT_FIR entrada = bsp.new INPUT_FIR();
@@ -346,7 +362,7 @@ public class NitgenSdk {
     }
 
     /** Mesmos valores do app de exemplo da Nitgen. */
-    private void configurar() {
+    private static void configurar(NBioBSPJNI bsp) {
         NBioBSPJNI.INIT_INFO_0 init = bsp.new INIT_INFO_0();
         bsp.GetInitInfo(init);
         init.DefaultTimeout = TIMEOUT_CAPTURA_MS;
@@ -373,6 +389,22 @@ public class NitgenSdk {
     private static String codigo(int codigo) {
         return "código 0x" + Integer.toHexString(codigo);
     }
+
+    /** Instâncias extras não abrem o leitor: os eventos são ignorados. */
+    private static final NBioBSPJNI.CAPTURE_CALLBACK SEM_EVENTOS = new NBioBSPJNI.CAPTURE_CALLBACK() {
+        @Override
+        public void OnConnected() {
+        }
+
+        @Override
+        public void OnDisConnected() {
+        }
+
+        @Override
+        public int OnCaptured(NBioBSPJNI.CAPTURED_DATA dados) {
+            return NBioBSPJNI.ERROR.NBioAPIERROR_USER_CANCEL;
+        }
+    };
 
     private final NBioBSPJNI.CAPTURE_CALLBACK callback = new NBioBSPJNI.CAPTURE_CALLBACK() {
         @Override

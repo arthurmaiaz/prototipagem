@@ -5,6 +5,7 @@ import android.os.Looper;
 
 import java.util.Arrays;
 
+import br.unifor.cct.biometria.FakeFingerprintMatcher;
 import br.unifor.cct.model.Professor;
 
 /**
@@ -27,7 +28,7 @@ public class MockReservaApi implements ReservaApi, ProfessorApi {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     @Override
-    public void criarReserva(int professorId, String projetorId, String data,
+    public void criarReserva(String professorEmail, String projetorId, String data,
                               String inicio, String fim, ReservaCallback callback) {
         handler.postDelayed(() -> {
             int reservaId = proximoReservaId++;
@@ -44,18 +45,32 @@ public class MockReservaApi implements ReservaApi, ProfessorApi {
     }
 
     @Override
+    public void registrarDevolucao(int reservaId, ReservaCallback callback) {
+        handler.postDelayed(() -> callback.onSucesso(
+                new ReservaResultado(true, reservaId, "Devolução registrada.")),
+                LATENCIA_SIMULADA_MS);
+    }
+
+    @Override
+    public void devolverProjetor(String projetorId, ReservaCallback callback) {
+        handler.postDelayed(() -> callback.onSucesso(
+                new ReservaResultado(true, proximoReservaId - 1, "Devolução registrada.")),
+                LATENCIA_SIMULADA_MS);
+    }
+
+    @Override
     public void consultarReserva(int reservaId, ReservaCallback callback) {
         handler.postDelayed(() -> callback.onSucesso(
                 new ReservaResultado(true, reservaId, "Reserva ativa.")),
                 LATENCIA_SIMULADA_MS);
     }
 
-    /** O id 1 é o mesmo que o FakeFingerprintMatcher devolve. */
+    /** O primeiro é o mesmo e-mail que o FakeFingerprintMatcher devolve. */
     @Override
     public void listarProfessores(ProfessoresCallback callback) {
         handler.postDelayed(() -> callback.onSucesso(Arrays.asList(
-                new Professor(1, "Professor Teste", "0001", true),
-                new Professor(2, "Professora Inativa", "0002", false))),
+                new Professor(FakeFingerprintMatcher.EMAIL_TESTE, "Professor Teste", "0001", true),
+                new Professor("inativa@unifor.br", "Professora Inativa", "0002", false))),
                 LATENCIA_SIMULADA_MS);
     }
 }

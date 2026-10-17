@@ -14,6 +14,11 @@
         android:name="android.hardware.camera.autofocus"
         android:required="false" />
 
+    <!-- API REST do NFC (ServicoApiNfc): serviço em primeiro plano com notificação. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Opcional: o app instala em aparelho sem NFC e usa o QR Code. -->
     <uses-feature
         android:name="android.hardware.nfc"
@@ -59,6 +64,13 @@
             android:label="Teste NFC"
             android:launchMode="singleTop" />
 
+        <!-- Fluxo do terminal (Fase 5). singleTop: o NFC entrega a tag por onNewIntent. -->
+        <activity
+            android:name=".ui.ReservaActivity"
+            android:exported="false"
+            android:label="Reservar projetor"
+            android:launchMode="singleTop" />
+
         <activity
             android:name=".ui.TesteReservaActivity"
             android:exported="true"
@@ -87,6 +99,16 @@
             android:name=".ui.TesteUsbActivity"
             android:exported="true"
             android:label="Teste USB" />
+
+        <!-- Servidor HTTP da API do NFC (porta 8787). -->
+        <service
+            android:name=".rest.ServicoApiNfc"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Servidor HTTP local que atende pedidos de leitura de tag NFC vindos da rede." />
+        </service>
 
         <activity
             android:name=".ui.PerfilActivity"

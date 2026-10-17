@@ -21,6 +21,7 @@ import androidx.core.view.WindowInsetsCompat;
 import java.util.List;
 
 import br.unifor.cct.R;
+import br.unifor.cct.biometria.FakeFingerprintMatcher;
 import br.unifor.cct.model.Professor;
 import br.unifor.cct.storage.ProfessorRepository;
 
@@ -120,7 +121,7 @@ public class MainActivity extends Activity {
         View cardBiometriaFake = findViewById(R.id.cardBiometriaFake);
 
         vincularAcesso(cardDigital, TesteDigitalActivity.class);
-        vincularAcesso(cardReserva, TesteReservaActivity.class);
+        vincularAcesso(cardReserva, ReservaActivity.class);
         vincularAcesso(cardNfc, TesteNfcActivity.class);
         vincularAcesso(cardQrCode, LerQrCodeActivity.class);
         vincularAcesso(cardCaptura, TesteCapturaActivity.class);
@@ -310,7 +311,7 @@ public class MainActivity extends Activity {
             }
         }
         // Professor cadastrado institucionalmente para testes
-        return new Professor(1, "Professor Teste", "0001", true);
+        return new Professor(FakeFingerprintMatcher.EMAIL_TESTE, "Professor Teste", "0001", true);
     }
 
     private void vincularAcesso(View view, Class<? extends Activity> destino) {

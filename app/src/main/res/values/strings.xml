@@ -13,7 +13,7 @@
     <string name="menu_cadastrar_digital_desc">Leitor biométrico Hamster DX</string>
 
     <string name="menu_reservar">Reservar</string>
-    <string name="menu_reservar_desc">Fluxo de reserva (Apps Script)</string>
+    <string name="menu_reservar_desc">Digital, etiqueta do projetor e horário</string>
 
     <string name="menu_cadastrar_tag_nfc">Cadastrar tag (NFC)</string>
     <string name="menu_cadastrar_tag_nfc_desc">Leitura e gravação de tags por aproximação</string>

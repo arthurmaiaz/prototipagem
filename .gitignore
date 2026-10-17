@@ -19,3 +19,6 @@ local.properties
 Thumbs.db
 # SDK da Nitgen (proprietário): não vai para o repositório público. Ver app/libs/README.md
 app/libs/*.aar
+
+# Token da API NFC usado pelo scripts/test-api.ps1 e test-api.sh
+appnfc-test-token.txt

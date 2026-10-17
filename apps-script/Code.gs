@@ -5,8 +5,9 @@
  * JSON no corpo, e guarda tudo na planilha à qual este script está ligado.
  *
  * Pedidos:
- *   { acao: "criarReserva", token, professorId, projetorId, data, inicio, fim }
- *   { acao: "cancelarReserva" | "consultarReserva", token, reservaId }
+ *   { acao: "criarReserva", token, professorEmail, projetorId, data, inicio, fim }
+ *   { acao: "cancelarReserva" | "consultarReserva" | "registrarDevolucao", token, reservaId }
+ *   { acao: "registrarDevolucao", token, projetorId }   (devolução pela tag, sem o id)
  *   { acao: "listarProfessores", token }
  * Resposta:
  *   { sucesso, reservaId, mensagem }   (listarProfessores também traz "professores")
@@ -14,7 +15,15 @@
  * O token do terminal fica nas Propriedades do script (chave TOKEN), nunca
  * na planilha. Rode definirToken() uma vez para gerar.
  *
- * Nenhum dado biométrico chega aqui: o terminal só envia o professorId.
+ * Regras da reserva: o fim não pode ter passado, a duração não passa de
+ * duracaoMaximaMinutos (aba config, padrão 240) e não pode haver outra
+ * reserva ATIVA do mesmo projetor no mesmo horário. A devolução muda a
+ * reserva para FINALIZADA e libera o resto do horário.
+ *
+ * O professor é identificado pelo e-mail (aba professores, coluna email),
+ * sempre comparado em minúsculas.
+ *
+ * Nenhum dado biométrico chega aqui: o terminal só envia o professorEmail.
  */
 
 var ABA_PROFESSORES = 'professores';
@@ -23,20 +32,23 @@ var ABA_RESERVAS = 'reservas';
 var ABA_CONFIG = 'config';
 
 var CABECALHOS = {
-  professores: ['id', 'nome', 'matricula', 'ativo'],
+  professores: ['email', 'nome', 'matricula', 'ativo'],
   projetores: ['codigo', 'descricao', 'ativo'],
-  reservas: ['id', 'professorId', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm'],
+  reservas: ['id', 'professorEmail', 'projetorId', 'data', 'inicio', 'fim', 'status', 'criadaEm', 'canceladaEm', 'devolvidaEm'],
   config: ['chave', 'valor']
 };
 
 // Colunas da aba reservas (1 = A), usadas para atualizar uma célula.
 var COL_STATUS = 7;
 var COL_CANCELADA_EM = 9;
+var COL_DEVOLVIDA_EM = 10;
 
 var PRIMEIRO_RESERVA_ID = 1000;
 var ESPERA_LOCK_MS = 10000;
+var DURACAO_MAXIMA_PADRAO_MIN = 240;
 
 var PADRAO_PROJETOR = /^PAT-\d{3,}$/;
+var PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 var PADRAO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 var PADRAO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -82,6 +94,8 @@ function tratarPedido(corpo) {
         return comLock(function () { return criarReserva(pedido); });
       case 'cancelarReserva':
         return comLock(function () { return cancelarReserva(pedido); });
+      case 'registrarDevolucao':
+        return comLock(function () { return registrarDevolucao(pedido); });
       case 'consultarReserva':
         return consultarReserva(pedido);
       case 'listarProfessores':
@@ -111,8 +125,8 @@ function comLock(funcao) {
 // ------------------------------------------------------------------ ações
 
 function criarReserva(p) {
-  var professorId = Number(p.professorId);
-  if (!Number.isInteger(professorId)) return falha('Professor inválido.');
+  var professorEmail = normalizarEmail(p.professorEmail);
+  if (!PADRAO_EMAIL.test(professorEmail)) return falha('E-mail do professor inválido.');
   if (!PADRAO_PROJETOR.test(p.projetorId || '')) return falha('Código de projetor inválido.');
   if (!dataValida(p.data)) return falha('Data inválida. Use o formato aaaa-mm-dd.');
   if (!PADRAO_HORA.test(p.inicio || '') || !PADRAO_HORA.test(p.fim || '')) {
@@ -120,7 +134,16 @@ function criarReserva(p) {
   }
   if (p.fim <= p.inicio) return falha('O horário de fim deve ser depois do início.');
 
-  var professor = buscar(lerProfessores(), function (x) { return x.id === professorId; });
+  var duracaoMaxima = duracaoMaximaMinutos();
+  if (minutos(p.fim) - minutos(p.inicio) > duracaoMaxima) {
+    return falha('A reserva pode durar no máximo ' + textoDuracao(duracaoMaxima) + '.');
+  }
+  var hoje = dataHoraLocal(agora());
+  if (p.data < hoje.data || (p.data === hoje.data && p.fim <= hoje.hora)) {
+    return falha('Esse horário já passou. Escolha um horário futuro.');
+  }
+
+  var professor = buscar(lerProfessores(), function (x) { return x.email === professorEmail; });
   if (!professor) return falha('Professor não cadastrado.');
   if (!professor.ativo) return falha('Professor inativo. Procure a coordenação.');
 
@@ -142,7 +165,7 @@ function criarReserva(p) {
 
   var id = proximoReservaId();
   aba(ABA_RESERVAS).appendRow([
-    id, professorId, p.projetorId, p.data, p.inicio, p.fim, 'ATIVA', new Date(), ''
+    id, professorEmail, p.projetorId, p.data, p.inicio, p.fim, 'ATIVA', new Date(), ''
   ]);
   return { sucesso: true, reservaId: id, mensagem: 'Reserva realizada com sucesso.' };
 }
@@ -159,6 +182,47 @@ function cancelarReserva(p) {
   return { sucesso: true, reservaId: reserva.id, mensagem: 'Reserva cancelada.' };
 }
 
+/**
+ * O professor devolveu o projetor: a reserva termina e o horário fica livre.
+ * Aceita o reservaId ou, no terminal, só o projetorId lido na tag: nesse
+ * caso vale a reserva ATIVA do projetor que começou por último.
+ */
+function registrarDevolucao(p) {
+  var temId = p.reservaId !== undefined && p.reservaId !== null && p.reservaId !== '';
+  if (!temId && p.projetorId !== undefined) {
+    if (!PADRAO_PROJETOR.test(p.projetorId || '')) return falha('Código de projetor inválido.');
+    var emUso = reservaEmUso(p.projetorId);
+    if (!emUso) return falha('O projetor ' + p.projetorId + ' não tem reserva em uso para devolver.');
+    p = { reservaId: emUso.id };
+  }
+  var reserva = buscarReserva(p.reservaId);
+  if (!reserva) return falha('Reserva não encontrada.');
+  if (reserva.status !== 'ATIVA') {
+    return falha('A reserva ' + reserva.id + ' não está ativa (' + reserva.status + ').');
+  }
+  var momento = agora();
+  var local = dataHoraLocal(momento);
+  if (local.data + ' ' + local.hora < reserva.data + ' ' + reserva.inicio) {
+    return falha('A reserva ' + reserva.id + ' ainda não começou. Para desistir, cancele a reserva.');
+  }
+  var planilha = aba(ABA_RESERVAS);
+  planilha.getRange(reserva.linha, COL_STATUS).setValue('FINALIZADA');
+  planilha.getRange(reserva.linha, COL_DEVOLVIDA_EM).setValue(momento);
+  return { sucesso: true, reservaId: reserva.id, mensagem: 'Devolução registrada.' };
+}
+
+/** Reserva ATIVA do projetor que já começou; se houver mais de uma, a mais recente. */
+function reservaEmUso(projetorId) {
+  var local = dataHoraLocal(agora());
+  var agoraTexto = local.data + ' ' + local.hora;
+  return lerReservas().filter(function (r) {
+    return r.status === 'ATIVA' && r.projetorId === projetorId
+        && r.data + ' ' + r.inicio <= agoraTexto;
+  }).reduce(function (escolhida, r) {
+    return !escolhida || r.data + ' ' + r.inicio > escolhida.data + ' ' + escolhida.inicio ? r : escolhida;
+  }, null);
+}
+
 function consultarReserva(p) {
   var r = buscarReserva(p.reservaId);
   if (!r) return falha('Reserva não encontrada.');
@@ -173,7 +237,7 @@ function consultarReserva(p) {
 /** Para o terminal sincronizar o ProfessorRepository. */
 function listarProfessores() {
   var lista = lerProfessores().map(function (x) {
-    return { id: x.id, nome: x.nome, matricula: x.matricula, ativo: x.ativo };
+    return { email: x.email, nome: x.nome, matricula: x.matricula, ativo: x.ativo };
   });
   return { sucesso: true, reservaId: null, mensagem: lista.length + ' professor(es).', professores: lista };
 }
@@ -182,9 +246,9 @@ function listarProfessores() {
 
 function lerProfessores() {
   return linhas(ABA_PROFESSORES).map(function (l) {
-    return { id: Number(l.valores[0]), nome: texto(l.valores[1]), matricula: texto(l.valores[2]) || null,
-             ativo: booleano(l.valores[3]) };
-  }).filter(function (x) { return Number.isInteger(x.id) && x.nome; });
+    return { email: normalizarEmail(l.valores[0]), nome: texto(l.valores[1]),
+             matricula: texto(l.valores[2]) || null, ativo: booleano(l.valores[3]) };
+  }).filter(function (x) { return PADRAO_EMAIL.test(x.email) && x.nome; });
 }
 
 function lerProjetores() {
@@ -197,7 +261,7 @@ function lerProjetores() {
 function lerReservas() {
   return linhas(ABA_RESERVAS).map(function (l) {
     var v = l.valores;
-    return { linha: l.linha, id: Number(v[0]), professorId: Number(v[1]), projetorId: texto(v[2]),
+    return { linha: l.linha, id: Number(v[0]), professorEmail: normalizarEmail(v[1]), projetorId: texto(v[2]),
              data: textoData(v[3]), inicio: textoHora(v[4]), fim: textoHora(v[5]),
              status: texto(v[6]).toUpperCase() };
   }).filter(function (x) { return Number.isInteger(x.id); });
@@ -245,7 +309,36 @@ function proximoReservaId() {
   return id;
 }
 
+/** Lê um valor da aba config; devolve o padrão se a chave não existir. */
+function lerConfig(chave, padrao) {
+  var linha = buscar(linhas(ABA_CONFIG), function (l) { return texto(l.valores[0]) === chave; });
+  return linha ? linha.valores[1] : padrao;
+}
+
+function duracaoMaximaMinutos() {
+  var valor = Number(lerConfig('duracaoMaximaMinutos', DURACAO_MAXIMA_PADRAO_MIN));
+  return Number.isInteger(valor) && valor > 0 ? valor : DURACAO_MAXIMA_PADRAO_MIN;
+}
+
 // --------------------------------------------------------------- utilidades
+
+/** Separado para os testes poderem fixar o relógio. */
+function agora() {
+  return new Date();
+}
+
+/** "hh:mm" em minutos desde a meia-noite. */
+function minutos(hora) {
+  var partes = hora.split(':').map(Number);
+  return partes[0] * 60 + partes[1];
+}
+
+function textoDuracao(totalMinutos) {
+  var h = Math.floor(totalMinutos / 60);
+  var m = totalMinutos % 60;
+  if (!m) return h + (h === 1 ? ' hora' : ' horas');
+  return h ? h + 'h' + String(m).padStart(2, '0') : m + ' minutos';
+}
 
 function falha(mensagem) {
   return { sucesso: false, reservaId: null, mensagem: mensagem };
@@ -256,6 +349,11 @@ function buscar(lista, condicao) {
     if (condicao(lista[i])) return lista[i];
   }
   return null;
+}
+
+/** E-mail sem espaços e em minúsculas: Ana@Unifor.br e ana@unifor.br são o mesmo. */
+function normalizarEmail(valor) {
+  return texto(valor).toLowerCase();
 }
 
 function texto(valor) {
@@ -284,6 +382,14 @@ function textoHora(valor) {
   return texto(valor);
 }
 
+/** Data "aaaa-mm-dd" e hora "hh:mm" de um instante, no fuso da planilha. */
+function dataHoraLocal(momento) {
+  return {
+    data: Utilities.formatDate(momento, fuso(), 'yyyy-MM-dd'),
+    hora: Utilities.formatDate(momento, fuso(), 'HH:mm')
+  };
+}
+
 function fuso() {
   return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
 }
@@ -308,6 +414,11 @@ function dataBr(data) {
  */
 function configurarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var professoresAntigo = ss.getSheetByName(ABA_PROFESSORES);
+  if (professoresAntigo && texto(professoresAntigo.getRange(1, 1).getValue()) === 'id') {
+    console.log('A aba professores usava id numérico na coluna A. O cabeçalho agora é "email": '
+        + 'troque os números da coluna A pelo e-mail de cada professor.');
+  }
   Object.keys(CABECALHOS).forEach(function (nome) {
     var planilha = ss.getSheetByName(nome) || ss.insertSheet(nome);
     var cabecalho = CABECALHOS[nome];
@@ -316,7 +427,8 @@ function configurarPlanilha() {
   });
 
   var maxLinhas = 1000;
-  // matricula, codigo e data/hora como texto, para o Sheets não converter.
+  // email, matricula, codigo e data/hora como texto, para o Sheets não converter.
+  ss.getSheetByName(ABA_PROFESSORES).getRange(2, 1, maxLinhas, 1).setNumberFormat('@');
   ss.getSheetByName(ABA_PROFESSORES).getRange(2, 3, maxLinhas, 1).setNumberFormat('@');
   ss.getSheetByName(ABA_PROFESSORES).getRange(2, 4, maxLinhas, 1).insertCheckboxes();
   ss.getSheetByName(ABA_PROJETORES).getRange(2, 1, maxLinhas, 1).setNumberFormat('@');
@@ -326,6 +438,8 @@ function configurarPlanilha() {
   var config = ss.getSheetByName(ABA_CONFIG);
   var temContador = config.getDataRange().getValues().some(function (l) { return l[0] === 'proximoReservaId'; });
   if (!temContador) config.appendRow(['proximoReservaId', PRIMEIRO_RESERVA_ID]);
+  var temDuracao = config.getDataRange().getValues().some(function (l) { return l[0] === 'duracaoMaximaMinutos'; });
+  if (!temDuracao) config.appendRow(['duracaoMaximaMinutos', DURACAO_MAXIMA_PADRAO_MIN]);
 
   var padrao = ss.getSheetByName('Página1') || ss.getSheetByName('Sheet1');
   if (padrao && padrao.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(padrao);

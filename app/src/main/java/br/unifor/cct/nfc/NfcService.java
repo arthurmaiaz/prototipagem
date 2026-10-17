@@ -3,6 +3,7 @@ package br.unifor.cct.nfc;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -17,7 +18,10 @@ import android.os.Looper;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -107,7 +111,7 @@ public class NfcService {
      * @param travar se true, a tag vira somente leitura depois de gravada (irreversível)
      */
     public void iniciarGravacao(String codigo, boolean travar, GravacaoCallback callback) {
-        String limpo = codigo == null ? null : codigo.trim().toUpperCase(java.util.Locale.ROOT);
+        String limpo = codigo == null ? null : codigo.trim().toUpperCase(Locale.ROOT);
         if (!Projetor.codigoValido(limpo)) {
             limparModoGravacao();
             if (callback != null) {
@@ -169,31 +173,61 @@ public class NfcService {
     // ---------------------------------------------------------------- leitura
 
     private void ler(Tag tag) {
+        String tagId = hex(tag.getId());
+        List<String> tecnologias = new ArrayList<>();
+        for (String tech : tag.getTechList()) {
+            tecnologias.add(tech.substring(tech.lastIndexOf('.') + 1));
+        }
+        List<String> textos = new ArrayList<>();
+        List<String> urls = new ArrayList<>();
+
         Ndef ndef = Ndef.get(tag);
         if (ndef == null) {
-            entregarLeitura(false, null, "Tag sem formato NDEF. Ela precisa ser cadastrada antes.");
+            entregarLeitura(false, null, "Tag sem formato NDEF. Ela precisa ser cadastrada antes.",
+                    textos, urls, tagId, tecnologias);
             return;
         }
 
         NdefMessage mensagem = ndef.getCachedNdefMessage();
         if (mensagem == null || mensagem.getRecords().length == 0) {
-            entregarLeitura(false, null, "Tag vazia. Ela precisa ser cadastrada antes.");
+            entregarLeitura(false, null, "Tag vazia. Ela precisa ser cadastrada antes.",
+                    textos, urls, tagId, tecnologias);
             return;
         }
 
+        // Junta tudo o que veio na tag; o código é o primeiro texto no padrão PAT-001.
+        String codigo = null;
         String textoInvalido = null;
         for (NdefRecord record : mensagem.getRecords()) {
             String texto = extrairTexto(record);
-            if (texto == null || texto.isEmpty()) continue;
-            if (Projetor.codigoValido(texto)) {
-                entregarLeitura(true, texto, "Projetor " + texto + " identificado.");
-                return;
+            if (texto != null && !texto.isEmpty()) {
+                textos.add(texto);
+                if (codigo == null && Projetor.codigoValido(texto)) {
+                    codigo = texto;
+                } else if (textoInvalido == null) {
+                    textoInvalido = texto;
+                }
+                continue;
             }
-            textoInvalido = texto;
+            Uri uri = record.toUri();
+            if (uri != null) urls.add(uri.toString());
+        }
+        if (codigo != null) {
+            entregarLeitura(true, codigo, "Projetor " + codigo + " identificado.",
+                    textos, urls, tagId, tecnologias);
+            return;
         }
         entregarLeitura(false, null, textoInvalido == null
                 ? "Esta tag não contém um código de projetor."
-                : "Código inválido na tag (\"" + textoInvalido + "\"). Cadastre a tag de novo.");
+                : "Código inválido na tag (\"" + textoInvalido + "\"). Cadastre a tag de novo.",
+                textos, urls, tagId, tecnologias);
+    }
+
+    private static String hex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return null;
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) sb.append(String.format(Locale.ROOT, "%02X", b));
+        return sb.toString();
     }
 
     /** Extrai o texto de um record NDEF do tipo Text; devolve null se for de outro tipo. */
@@ -215,8 +249,15 @@ public class NfcService {
     }
 
     private void entregarLeitura(boolean sucesso, String codigo, String mensagem) {
+        entregarLeitura(sucesso, codigo, mensagem, null, null, null, null);
+    }
+
+    private void entregarLeitura(boolean sucesso, String codigo, String mensagem,
+                                 List<String> textos, List<String> urls,
+                                 String tagId, List<String> tecnologias) {
         if (leituraCallback != null) {
-            leituraCallback.onResultado(new ResultadoNfc(sucesso, codigo, mensagem));
+            leituraCallback.onResultado(new ResultadoNfc(
+                    sucesso, codigo, mensagem, textos, urls, tagId, tecnologias));
         }
     }
 
