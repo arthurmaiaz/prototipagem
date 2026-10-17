@@ -10,7 +10,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -476,9 +478,18 @@ public class BiometricDatabase {
             out.write(cifrado);
             out.getFD().sync();
         }
-        if (!temporario.renameTo(arquivo)) {
+        try {
+            try {
+                Files.move(temporario.toPath(), arquivo.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporario.toPath(), arquivo.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
             temporario.delete();
-            throw new IOException("Falha ao gravar o arquivo de digitais.");
+            throw new IOException("Falha ao gravar o arquivo de digitais.", e);
         }
         posicoes = novo;
         falhaAoCarregar = false;

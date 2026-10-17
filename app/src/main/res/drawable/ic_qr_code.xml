@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- QR Code corner 1 (top-left) -->
+    <path
+        android:fillColor="@color/unifor_primary_brand"
+        android:pathData="M3,3h8v8H3V3z M5,5v4h4V5H5z M6.5,6.5h1v1h-1V6.5z" />
+    <!-- QR Code corner 2 (top-right) -->
+    <path
+        android:fillColor="@color/unifor_primary_brand"
+        android:pathData="M13,3h8v8h-8V3z M15,5v4h4V5H15z M16.5,6.5h1v1h-1V6.5z" />
+    <!-- QR Code corner 3 (bottom-left) -->
+    <path
+        android:fillColor="@color/unifor_primary_brand"
+        android:pathData="M3,13h8v8H3V13z M5,15v4h4v-4H5z M6.5,16.5h1v1h-1V16.5z" />
+    <!-- Data points & alignment (bottom-right) -->
+    <path
+        android:fillColor="@color/unifor_primary_brand"
+        android:pathData="M13,13h2v2h-2z M17,13h2v2h-2z M19,15h2v2h-2z M13,17h2v2h-2z M15,19h2v2h-2z M19,19h2v2h-2z M17,17h2v2h-2z M13,15h2v2h-2z" />
+</vector>

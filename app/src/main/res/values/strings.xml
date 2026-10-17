@@ -92,4 +92,26 @@
     <string name="assistente_sugestoes_titulo">Tópicos frequentes:</string>
     <string name="assistente_hint_mensagem">Escreva uma pergunta para o assistente...</string>
     <string name="assistente_envio_pendente">O assistente virtual interativo depende da integração com o serviço de IA da Unifor e estará operacional em breve.</string>
+
+    <!-- Funcionalidade Ler QR Code (CCT Unifor) -->
+    <string name="menu_ler_qr_code">Ler QR Code</string>
+    <string name="menu_ler_qr_code_desc">Identifique o projetor escaneando o código de patrimônio</string>
+    <string name="qr_titulo">Leitura de QR Code</string>
+    <string name="qr_subtitulo">Identificação do projetor pela câmera</string>
+    <string name="qr_instrucao">Aponte a câmera para a etiqueta com o QR Code no projetor (ex.: PAT-001)</string>
+    <string name="qr_permissao_titulo">Acesso à Câmera Necessário</string>
+    <string name="qr_permissao_desc">Para ler o QR Code do projetor, o aplicativo precisa de permissão para utilizar a câmera do aparelho.</string>
+    <string name="qr_permissao_btn">Permitir acesso à câmera</string>
+    <string name="qr_permissao_negada_aviso">A permissão de acesso à câmera foi recusada. Ative a permissão nas configurações do sistema para continuar.</string>
+    <string name="qr_sem_camera">Dispositivo não possui câmera disponível ou funcional para leitura.</string>
+    <string name="qr_estado_inicializando">Inicializando sensor de imagem...</string>
+    <string name="qr_sucesso_titulo">Projetor Reconhecido</string>
+    <string name="qr_sucesso_desc">Código de patrimônio verificado no padrão Unifor:</string>
+    <string name="qr_invalido_titulo">Código Não Reconhecido</string>
+    <string name="qr_invalido_desc">O QR Code escaneado não segue o padrão de patrimônio de projetores da Unifor (padrão esperado: PAT-001).</string>
+    <string name="qr_btn_usar_reserva">Avançar para Reserva</string>
+    <string name="qr_btn_ler_novamente">Escanear outro código</string>
+    <string name="qr_btn_digitar_manual">Digitar patrimônio manualmente</string>
+    <string name="qr_digitar_manual_hint">Informe o código (ex.: PAT-001)</string>
+    <string name="qr_vinicius_aviso">Integração: a geração de QR Code oficial está em desenvolvimento pela equipe (Vinícius). O aplicativo valida o padrão PAT-001 e aguarda definições contratuais para rotas avançadas.</string>
 </resources>

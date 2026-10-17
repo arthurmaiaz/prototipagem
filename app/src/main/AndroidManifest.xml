@@ -4,6 +4,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Opcional: o app pode rodar em aparelhos sem câmera física ou foco automático. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <!-- API REST do NFC (ServicoApiNfc): serviço em primeiro plano com notificação. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -115,6 +124,11 @@
             android:name=".ui.AssistenteActivity"
             android:exported="false"
             android:label="Assistente Virtual" />
+
+        <activity
+            android:name=".ui.LerQrCodeActivity"
+            android:exported="false"
+            android:label="Ler QR Code" />
     </application>
 
 </manifest>

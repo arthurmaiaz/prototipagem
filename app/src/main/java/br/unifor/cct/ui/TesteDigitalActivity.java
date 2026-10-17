@@ -10,6 +10,7 @@ import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextWatcher;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -78,10 +79,13 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
     private Button btnRemover;
     private Button btnTrocarPin;
     private Button btnIdentificar;
+    private Button btnVerPerfil;
     private Button btnCancelar;
     private ImageView ivDigital;
     private TextView tvQualidade;
     private TextView tvRegistro;
+    private View btnVoltarDigital;
+    private String professorIdentificadoEmail;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,10 +101,25 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
         btnRemover = findViewById(R.id.btnRemover);
         btnTrocarPin = findViewById(R.id.btnTrocarPin);
         btnIdentificar = findViewById(R.id.btnIdentificar);
+        btnVerPerfil = findViewById(R.id.btnVerPerfil);
         btnCancelar = findViewById(R.id.btnCancelar);
+        btnVoltarDigital = findViewById(R.id.btnVoltarDigital);
         ivDigital = findViewById(R.id.ivDigital);
         tvQualidade = findViewById(R.id.tvQualidade);
         tvRegistro = findViewById(R.id.tvRegistro);
+
+        if (btnVoltarDigital != null) {
+            btnVoltarDigital.setOnClickListener(v -> finish());
+        }
+        if (btnVerPerfil != null) {
+            btnVerPerfil.setOnClickListener(v -> {
+                if (professorIdentificadoEmail != null) {
+                    Intent intent = new Intent(this, PerfilActivity.class);
+                    intent.putExtra("professorEmail", professorIdentificadoEmail);
+                    startActivity(intent);
+                }
+            });
+        }
 
         abertaPeloLeitor = UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(getIntent().getAction());
         professores = new ProfessorRepository(this);
@@ -257,11 +276,15 @@ public class TesteDigitalActivity extends Activity implements NitgenSdk.Listener
 
     private void identificar() {
         inicio("Identificando...");
+        if (btnVerPerfil != null) btnVerPerfil.setVisibility(View.GONE);
+        professorIdentificadoEmail = null;
         tvInstrucao.setText("Coloque o dedo no leitor.");
         biometria.identificarProfessor(new BiometriaCallback() {
             @Override
             public void onSucesso(ResultadoBiometria resultado) {
                 if (resultado.isSucesso()) {
+                    professorIdentificadoEmail = resultado.getProfessorEmail();
+                    if (btnVerPerfil != null) btnVerPerfil.setVisibility(View.VISIBLE);
                     Professor p = professores.buscarPorEmail(resultado.getProfessorEmail());
                     fim("IDENTIFICADO: " + resultado.getProfessorEmail()
                             + (p == null ? " (nome não sincronizado)" : " - " + p.getNome())

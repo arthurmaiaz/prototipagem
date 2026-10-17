@@ -98,6 +98,13 @@ public class PerfilActivity extends Activity {
     }
 
     private Professor obterProfessorPrincipal() {
+        String emailExtra = getIntent().getStringExtra("professorEmail");
+        if (emailExtra != null) {
+            Professor p = professores.buscarPorEmail(emailExtra);
+            if (p != null) {
+                return p;
+            }
+        }
         List<Professor> lista = professores.listar();
         if (!lista.isEmpty()) {
             return lista.get(0);
