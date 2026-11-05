@@ -4,6 +4,7 @@
 #
 #   ./scripts/test-api.sh -Ip 192.168.0.104              # só /health
 #   ./scripts/test-api.sh -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 30 s
+#   ./scripts/test-api.sh -Ip 192.168.0.104 -ReadBiometric  # digital (leitor simulado)
 #   ./scripts/test-api.sh -Ip 192.168.0.104 -Logs -Limit 10
 #
 # Os parâmetros também aceitam a forma --ip, --read-tag, --logs etc.
@@ -16,6 +17,7 @@ PORT=8787
 TOKEN_PATH="./appnfc-test-token.txt"
 READ_TAG=0
 READ_QR=0
+READ_BIO=0
 LOGS=0
 LIMIT=20
 OFFSET=0
@@ -32,10 +34,11 @@ while [ $# -gt 0 ]; do
         -TokenPath|--token-path)  TOKEN_PATH="${2:?falta o valor de $1}"; shift ;;
         -ReadTag|--read-tag)      READ_TAG=1 ;;
         -ReadQr|--read-qr)        READ_QR=1 ;;
+        -ReadBiometric|--read-biometric) READ_BIO=1 ;;
         -Logs|--logs)             LOGS=1 ;;
         -Limit|--limit)           LIMIT="${2:?falta o valor de $1}"; shift ;;
         -Offset|--offset)         OFFSET="${2:?falta o valor de $1}"; shift ;;
-        -h|--help)                sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)                sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *)                        falha "parâmetro desconhecido: $1 (use --help)" ;;
     esac
     shift
@@ -112,11 +115,24 @@ if [ "$READ_QR" -eq 1 ]; then
     chamar POST /v1/qr/read 40
 fi
 
+if [ "$READ_BIO" -eq 1 ]; then
+    echo "Coloque o dedo no leitor biométrico agora..."
+    chamar POST /v1/biometric/identify 40
+    if command -v jq >/dev/null; then
+        if [ "$(jq -r '.identified' <<< "$RESPOSTA")" = "true" ]; then
+            echo "Professor identificado: $(jq -r '.email' <<< "$RESPOSTA") (leitor $(jq -r '.mode' <<< "$RESPOSTA"))"
+        else
+            echo "Digital lida, mas não reconhecida: $(jq -r '.message' <<< "$RESPOSTA")"
+        fi
+    fi
+fi
+
 if [ "$LOGS" -eq 1 ]; then
     echo "Consultando logs de auditoria (limit=$LIMIT, offset=$OFFSET)..."
     chamar GET "/v1/audit/logs?limit=$LIMIT&offset=$OFFSET" 10
 fi
 
-if [ "$READ_TAG" -eq 0 ] && [ "$READ_QR" -eq 0 ] && [ "$LOGS" -eq 0 ]; then
-    echo "Health OK. Para testar a tag use -ReadTag; para QR Code use -ReadQr; para logs use -Logs."
+if [ "$READ_TAG" -eq 0 ] && [ "$READ_QR" -eq 0 ] && [ "$READ_BIO" -eq 0 ] && [ "$LOGS" -eq 0 ]; then
+    echo "Health OK. Para testar a tag use -ReadTag; para QR Code use -ReadQr;"
+    echo "para a digital use -ReadBiometric; para logs use -Logs."
 fi
