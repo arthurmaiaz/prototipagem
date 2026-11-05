@@ -16,10 +16,13 @@ import java.io.IOException;
 
 import br.unifor.cct.BuildConfig;
 import br.unifor.cct.R;
+import br.unifor.cct.biometria.BiometriaService;
+import br.unifor.cct.biometria.FakeFingerprintMatcher;
+import br.unifor.cct.biometria.FakeFingerprintReader;
 import br.unifor.cct.ui.TesteNfcActivity;
 
 /**
- * Serviço em primeiro plano que mantém a API REST do NFC no ar
+ * Serviço em primeiro plano que mantém a API REST do NFC e da biometria no ar
  * (http://&lt;ip do celular&gt;:8787), mesmo com o app em segundo plano.
  *
  * O serviço atende os pedidos, mas quem lê a tag é a TesteNfcActivity
@@ -36,6 +39,13 @@ public class ServicoApiNfc extends Service {
 
     /** Mantida entre reinícios do serviço, enquanto o processo viver. */
     private static final Auditoria AUDITORIA = new Auditoria();
+
+    /**
+     * Leitor simulado (sem o Hamster DX), o mesmo da TesteBiometriaActivity.
+     * Para o leitor real, troque os fakes e o modo "simulado".
+     */
+    private static final IdentificadorBiometria BIOMETRIA = IdentificadorBiometria.de(
+            new BiometriaService(new FakeFingerprintReader(), new FakeFingerprintMatcher()), "simulado");
 
     private static volatile boolean rodando;
     private static volatile String ultimoErro;
@@ -76,7 +86,7 @@ public class ServicoApiNfc extends Service {
         }
         if (servidor == null) {
             ServidorHttp novo = new ServidorHttp(PORTA, new NfcRestApi(PonteNfc.padrao(), AUDITORIA,
-                    () -> TokenApi.obter(this), BuildConfig.VERSION_NAME));
+                    () -> TokenApi.obter(this), BuildConfig.VERSION_NAME, BIOMETRIA));
             try {
                 novo.iniciar();
                 servidor = novo;

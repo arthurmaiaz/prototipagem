@@ -13,9 +13,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import br.unifor.cct.biometria.ResultadoBiometria;
 import br.unifor.cct.nfc.ResultadoNfc;
 
 /**
@@ -26,6 +28,7 @@ import br.unifor.cct.nfc.ResultadoNfc;
  * GET  /health                          estado do serviço e do NFC
  * POST /v1/nfc/read                     espera a próxima tag e devolve o patrimônio
  * POST /v1/qr/read                      ainda não implementado (501)
+ * POST /v1/biometric/identify           captura a digital e devolve o e-mail do professor
  * GET  /v1/audit/logs?limit=&offset=    chamadas registradas
  * </pre>
  *
@@ -47,13 +50,22 @@ public class NfcRestApi implements ServidorHttp.Handler {
     private final Auditoria auditoria;
     private final Supplier<String> token;
     private final String versao;
+    /** null: a rota de biometria responde 503. */
+    private final IdentificadorBiometria biometria;
+    private final AtomicBoolean capturando = new AtomicBoolean();
 
     /** @param token lido a cada pedido, porque pode ser trocado na tela */
     public NfcRestApi(PonteNfc ponte, Auditoria auditoria, Supplier<String> token, String versao) {
+        this(ponte, auditoria, token, versao, null);
+    }
+
+    public NfcRestApi(PonteNfc ponte, Auditoria auditoria, Supplier<String> token, String versao,
+                      IdentificadorBiometria biometria) {
         this.ponte = ponte;
         this.auditoria = auditoria;
         this.token = token;
         this.versao = versao;
+        this.biometria = biometria;
     }
 
     @Override
@@ -93,6 +105,8 @@ public class NfcRestApi implements ServidorHttp.Handler {
                 return "POST".equals(metodo)
                         ? falha(json, 501, "Leitura de QR Code ainda não integrada neste app.")
                         : metodoErrado(json, "POST");
+            case "/v1/biometric/identify":
+                return "POST".equals(metodo) ? identificarDigital(req, json) : metodoErrado(json, "POST");
             case "/v1/audit/logs":
                 return "GET".equals(metodo) ? logs(req, json) : metodoErrado(json, "GET");
             default:
@@ -111,34 +125,24 @@ public class NfcRestApi implements ServidorHttp.Handler {
                 .put("nfcEnabled", ponte.isNfcLigado())
                 .put("nfcScreenOpen", ponte.isTelaAberta())
                 .put("writing", ponte.isGravando())
-                .put("readPending", ponte.haPedidoPendente());
+                .put("readPending", ponte.haPedidoPendente())
+                .put("biometricAvailable", biometria != null)
+                .put("biometricMode", biometria == null ? JSONObject.NULL : biometria.modo())
+                .put("biometricPending", capturando.get());
         return 200;
     }
 
     private int lerNfc(Requisicao req, JSONObject json, String[] patrimonio) throws JSONException {
-        int timeoutS = TIMEOUT_PADRAO_S;
-        String corpo = req.getCorpo().trim();
-        if (!corpo.isEmpty()) {
-            JSONObject pedido;
-            try {
-                pedido = new JSONObject(corpo);
-            } catch (JSONException e) {
-                return falha(json, 400, "Corpo precisa ser um objeto JSON (ex.: {}).");
-            }
-            if (pedido.has("timeoutSeconds")) {
-                Object valor = pedido.get("timeoutSeconds");
-                if (!(valor instanceof Integer) || (Integer) valor < 1 || (Integer) valor > TIMEOUT_MAXIMO_S) {
-                    return falha(json, 400, "timeoutSeconds deve ser inteiro de 1 a " + TIMEOUT_MAXIMO_S + ".");
-                }
-                timeoutS = (Integer) valor;
-            }
-        }
+        int timeoutS = timeoutSeconds(req, json);
+        if (timeoutS < 0) return 400;
 
-        if (!ponte.isNfcDisponivel()) return falha(json, 503, "Este aparelho não tem NFC.");
-        if (!ponte.isNfcLigado()) return falha(json, 503, "O NFC do celular está desligado.");
+        // A tela primeiro: o estado do NFC só é conhecido depois que ela abre
+        // (a API pode ter sido ligada pela tela de biometria).
         if (!ponte.isTelaAberta()) {
             return falha(json, 503, "Abra a tela de NFC no celular: só ela consegue ler a tag.");
         }
+        if (!ponte.isNfcDisponivel()) return falha(json, 503, "Este aparelho não tem NFC.");
+        if (!ponte.isNfcLigado()) return falha(json, 503, "O NFC do celular está desligado.");
         if (ponte.isGravando()) return falha(json, 409, "O celular está no modo de gravação de tag.");
 
         CompletableFuture<ResultadoNfc> pedido = ponte.abrirPedido();
@@ -169,6 +173,36 @@ public class NfcRestApi implements ServidorHttp.Handler {
                 .put("techList", new JSONArray(resultado.getTecnologias()))
                 .put("texts", new JSONArray(resultado.getTextos()))
                 .put("urls", new JSONArray(resultado.getUrls()))
+                .put("readAt", Instant.now().toString());
+        return 200;
+    }
+
+    private int identificarDigital(Requisicao req, JSONObject json) throws JSONException {
+        int timeoutS = timeoutSeconds(req, json);
+        if (timeoutS < 0) return 400;
+        if (biometria == null) return falha(json, 503, "Leitor biométrico não configurado neste app.");
+        if (!capturando.compareAndSet(false, true)) {
+            return falha(json, 409, "Já existe uma captura de digital em andamento.");
+        }
+        ResultadoBiometria resultado;
+        try {
+            resultado = biometria.identificar().get(timeoutS, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            return falha(json, 408, "Nenhuma digital foi lida em " + timeoutS + " s.");
+        } catch (ExecutionException e) {
+            return falha(json, 503, "Erro no leitor: " + e.getCause().getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return falha(json, 503, "Serviço encerrado durante a captura.");
+        } finally {
+            capturando.set(false);
+        }
+        String email = resultado.isSucesso() ? resultado.getProfessorEmail() : null;
+        json.put("success", true)
+                .put("identified", resultado.isSucesso())
+                .put("email", email == null ? JSONObject.NULL : email)
+                .put("message", resultado.getMensagem())
+                .put("mode", biometria.modo())
                 .put("readAt", Instant.now().toString());
         return 200;
     }
@@ -205,6 +239,30 @@ public class NfcRestApi implements ServidorHttp.Handler {
     }
 
     // --------------------------------------------------------------- apoio
+
+    /**
+     * Lê o timeoutSeconds opcional do corpo JSON.
+     *
+     * @return o timeout, ou -1 com a falha 400 já escrita no json
+     */
+    private static int timeoutSeconds(Requisicao req, JSONObject json) throws JSONException {
+        String corpo = req.getCorpo().trim();
+        if (corpo.isEmpty()) return TIMEOUT_PADRAO_S;
+        JSONObject pedido;
+        try {
+            pedido = new JSONObject(corpo);
+        } catch (JSONException e) {
+            falha(json, 400, "Corpo precisa ser um objeto JSON (ex.: {}).");
+            return -1;
+        }
+        if (!pedido.has("timeoutSeconds")) return TIMEOUT_PADRAO_S;
+        Object valor = pedido.get("timeoutSeconds");
+        if (!(valor instanceof Integer) || (Integer) valor < 1 || (Integer) valor > TIMEOUT_MAXIMO_S) {
+            falha(json, 400, "timeoutSeconds deve ser inteiro de 1 a " + TIMEOUT_MAXIMO_S + ".");
+            return -1;
+        }
+        return (Integer) valor;
+    }
 
     private boolean autorizado(Requisicao req) {
         String esperado = token.get();

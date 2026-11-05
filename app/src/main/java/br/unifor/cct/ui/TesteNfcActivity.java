@@ -221,7 +221,9 @@ public class TesteNfcActivity extends Activity implements PonteNfc.Ouvinte {
         String erro = ServicoApiNfc.getUltimoErro();
         if (rodando) {
             tvApiEstado.setText("No ar em http://" + (ip == null ? "<sem rede>" : ip)
-                    + ":" + ServicoApiNfc.PORTA + "\nGET /health · POST /v1/nfc/read · GET /v1/audit/logs");
+                    + ":" + ServicoApiNfc.PORTA
+                    + "\nIP: " + (ip == null ? "<sem rede>" : ip) + " · Porta: " + ServicoApiNfc.PORTA
+                    + "\nGET /health · POST /v1/nfc/read · GET /v1/audit/logs");
         } else {
             tvApiEstado.setText(erro == null ? "API desligada." : "API desligada. " + erro);
         }
