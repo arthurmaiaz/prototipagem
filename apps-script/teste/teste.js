@@ -17,7 +17,7 @@ const AGORA_PADRAO = '2026-09-20T12:00:00-03:00';
 
 function novaPlanilha(abas) {
   const sheets = {};
-  for (const [nome, linhas] of Object.entries(abas)) {
+  const novaAba = (nome, linhas) => {
     const dados = linhas.map((l) => l.slice());
     sheets[nome] = {
       dados,
@@ -30,9 +30,12 @@ function novaPlanilha(abas) {
         },
       }),
     };
-  }
+    return sheets[nome];
+  };
+  for (const [nome, linhas] of Object.entries(abas)) novaAba(nome, linhas);
   return {
     getSheetByName: (nome) => sheets[nome] || null,
+    insertSheet: (nome) => novaAba(nome, []),
     getSpreadsheetTimeZone: () => 'America/Fortaleza',
     sheets,
   };
@@ -391,6 +394,54 @@ const testes = {
     const r = app.contexto.testarLeituraNfc();
     assert.strictEqual(r.status, 408);
     assert.strictEqual(app.ss.sheets.leituras_nfc.dados[1][8], 'Nenhuma tag foi encostada em 30 s.');
+  },
+
+  'testarBiometria chama a rota de digital e registra na aba leituras_biometria'() {
+    const abas = abasPadrao();
+    abas.leituras_biometria = [['registradoEm']];
+    let pedido;
+    const app = carregar(abas, {
+      propriedades: { NFC_API_URL: 'https://tunel.exemplo', NFC_API_TOKEN: 'tok' },
+      fetch: (url, o) => {
+        pedido = { url, o };
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            success: true, identified: true, email: 'professor.teste@unifor.br', mode: 'simulado',
+            message: 'Professor identificado com sucesso.', correlationId: 'uuid-bio',
+          }),
+        };
+      },
+    });
+    const r = app.contexto.testarBiometria();
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(pedido.url, 'https://tunel.exemplo/v1/biometric/identify');
+    assert.strictEqual(pedido.o.method, 'post');
+    assert.strictEqual(pedido.o.headers.Authorization, 'Bearer tok');
+    assert.deepStrictEqual(JSON.parse(pedido.o.payload), { timeoutSeconds: 30 });
+    const linha = app.ss.sheets.leituras_biometria.dados[1];
+    assert.deepStrictEqual(linha.slice(1), ['/v1/biometric/identify', 200, true,
+      'professor.teste@unifor.br', 'simulado', 'Professor identificado com sucesso.', 'uuid-bio']);
+  },
+
+  'digital não reconhecida e erro HTTP também vão para a aba, sem exceção'() {
+    const respostas = [
+      [200, '{"success":true,"identified":false,"email":null,"mode":"simulado","message":"Digital nao reconhecida."}'],
+      [409, '{"success":false,"message":"Já existe uma captura de digital em andamento."}'],
+    ];
+    const app = carregar(abasPadrao(), {
+      propriedades: { NFC_API_URL: 'https://tunel.exemplo', NFC_API_TOKEN: 'tok' },
+      fetch: () => {
+        const [status, corpo] = respostas.shift();
+        return { getResponseCode: () => status, getContentText: () => corpo };
+      },
+    });
+    assert.strictEqual(app.contexto.testarBiometria().status, 200);
+    assert.strictEqual(app.contexto.testarBiometria().status, 409);
+    const dados = app.ss.sheets.leituras_biometria.dados;
+    assert.strictEqual(dados[0][3], 'identificado', 'aba criada com cabeçalho');
+    assert.deepStrictEqual(dados[1].slice(2, 5), [200, false, '']);
+    assert.deepStrictEqual(dados[2].slice(2, 7), [409, '', '', '', 'Já existe uma captura de digital em andamento.']);
   },
 
   'sem NFC_API_URL avisa o que configurar'() {

@@ -1,5 +1,6 @@
 /**
- * Chamada de teste da API REST do NFC do terminal Android (ServicoApiNfc).
+ * Chamada de teste da API REST do NFC e da biometria do terminal Android
+ * (ServicoApiNfc).
  *
  * O Apps Script roda nos servidores do Google e não alcança o IP local do
  * celular: a API precisa estar atrás de uma URL pública HTTPS (túnel, ver
@@ -11,6 +12,10 @@
  * Rode testarHealthNfc() para conferir a conexão e testarLeituraNfc() para
  * pedir uma leitura: encoste a tag no celular em até 30 s. Cada resposta
  * vai para o Registro de execução e para a aba "leituras_nfc".
+ *
+ * testarBiometria() pede uma captura de digital (por enquanto o leitor do
+ * celular é simulado e sempre identifica o professor de teste) e registra
+ * a resposta na aba "leituras_biometria".
  */
 
 var ABA_LEITURAS_NFC = 'leituras_nfc';
@@ -26,6 +31,27 @@ function testarHealthNfc() {
 function testarLeituraNfc() {
   var r = chamarApiNfc('post', '/v1/nfc/read', { timeoutSeconds: 30 });
   registrarRespostaNfc('/v1/nfc/read', r);
+  return r;
+}
+
+var ABA_LEITURAS_BIOMETRIA = 'leituras_biometria';
+var CABECALHO_LEITURAS_BIOMETRIA = ['registradoEm', 'rota', 'status', 'identificado', 'email',
+  'modo', 'mensagem', 'correlationId'];
+
+function testarBiometria() {
+  var r = chamarApiNfc('post', '/v1/biometric/identify', { timeoutSeconds: 30 });
+  var j = r.json || {};
+  console.log('/v1/biometric/identify -> HTTP ' + r.status + ' ' + JSON.stringify(j));
+  abaComCabecalho(ABA_LEITURAS_BIOMETRIA, CABECALHO_LEITURAS_BIOMETRIA).appendRow([
+    new Date(),
+    '/v1/biometric/identify',
+    r.status,
+    j.identified === undefined ? '' : j.identified,
+    j.email || '',
+    j.mode || '',
+    j.message || '',
+    j.correlationId || ''
+  ]);
   return r;
 }
 
@@ -61,14 +87,8 @@ function chamarApiNfc(metodo, caminho, corpo) {
 
 function registrarRespostaNfc(rota, r) {
   console.log(rota + ' -> HTTP ' + r.status + ' ' + JSON.stringify(r.json));
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var aba = ss.getSheetByName(ABA_LEITURAS_NFC);
-  if (!aba) {
-    aba = ss.insertSheet(ABA_LEITURAS_NFC);
-    aba.appendRow(CABECALHO_LEITURAS_NFC);
-  }
   var j = r.json || {};
-  aba.appendRow([
+  abaComCabecalho(ABA_LEITURAS_NFC, CABECALHO_LEITURAS_NFC).appendRow([
     new Date(),
     rota,
     r.status,
@@ -80,4 +100,15 @@ function registrarRespostaNfc(rota, r) {
     j.message || j.status || '',
     j.correlationId || ''
   ]);
+}
+
+/** Abre a aba; se não existir, cria com o cabeçalho. */
+function abaComCabecalho(nome, cabecalho) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var aba = ss.getSheetByName(nome);
+  if (!aba) {
+    aba = ss.insertSheet(nome);
+    aba.appendRow(cabecalho);
+  }
+  return aba;
 }

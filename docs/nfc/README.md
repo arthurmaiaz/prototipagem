@@ -169,8 +169,11 @@ No projeto do Apps Script:
    - `NFC_API_TOKEN` = o token da tela do celular
 3. Rode `testarHealthNfc`. Para `testarLeituraNfc`, deixe a tela "Teste
    NFC" aberta e encoste a tag em até 30 s.
-4. Cada resposta vai para o **Registro de execução** e para a aba
-   `leituras_nfc`, criada sozinha.
+4. Para a digital, rode `testarBiometria`. Por enquanto o leitor do
+   celular é simulado e sempre identifica o professor de teste.
+5. Cada resposta vai para o **Registro de execução** e para a aba
+   `leituras_nfc` (ou `leituras_biometria`, no caso da digital), criada
+   sozinha.
 
 ## Evidências
 
