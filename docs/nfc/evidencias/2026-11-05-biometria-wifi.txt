@@ -1,0 +1,35 @@
+# Teste da rota de biometria (leitor simulado) pela rede Wi-Fi, em 05/11/2026.
+# Celular: Samsung SM-M546B, tela "Teste Biometria" com a API ligada, em 10.231.188.56:8787.
+# PC: Fedora Linux, na mesma rede (10.231.188.206), rodando ./scripts/test-api.sh.
+# O leitor é o FakeFingerprintReader/Matcher (mode: simulado), sem o Hamster DX.
+
+$ ./scripts/test-api.sh -Ip 10.231.188.56 -ReadBiometric
+Testando conectividade com http://10.231.188.56:8787...
+TCP OK
+Testando autenticação em /health...
+{
+  "status": "ok",
+  "service": "br.unifor.cct NFC API",
+  "version": "1.0",
+  "time": "2026-11-05T19:54:40.248770Z",
+  "nfcAvailable": true,
+  "nfcEnabled": true,
+  "nfcScreenOpen": false,
+  "writing": false,
+  "readPending": false,
+  "biometricAvailable": true,
+  "biometricMode": "simulado",
+  "biometricPending": false,
+  "correlationId": "9e21f34c-17b9-40c9-81a5-4149f1778221"
+}
+Coloque o dedo no leitor biométrico agora...
+{
+  "success": true,
+  "identified": true,
+  "email": "professor.teste@unifor.br",
+  "message": "Professor identificado com sucesso.",
+  "mode": "simulado",
+  "readAt": "2026-11-05T19:54:41.341052Z",
+  "correlationId": "9e21f34c-17b9-40c9-81a5-4149f1778221"
+}
+Professor identificado: professor.teste@unifor.br (leitor simulado)
