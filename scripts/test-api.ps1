@@ -5,6 +5,7 @@ param(
     [string]$TokenPath = ".\appnfc-test-token.txt",
     [switch]$ReadTag,
     [switch]$ReadQr,
+    [switch]$ReadBiometric,
     [switch]$Logs,
     [int]$Limit = 20,
     [int]$Offset = 0
@@ -73,6 +74,23 @@ try {
         $qrResult | ConvertTo-Json -Depth 8
     }
 
+    if ($ReadBiometric) {
+        Write-Host "Coloque o dedo no leitor biometrico agora..."
+        $bioResult = Invoke-RestMethod `
+            -Uri "$baseUrl/v1/biometric/identify" `
+            -Method Post `
+            -Headers $headers `
+            -ContentType "application/json" `
+            -Body "{}" `
+            -TimeoutSec 40
+        $bioResult | ConvertTo-Json -Depth 8
+        if ($bioResult.identified) {
+            Write-Host "Professor identificado: $($bioResult.email) (leitor $($bioResult.mode))"
+        } else {
+            Write-Host "Digital lida, mas nao reconhecida: $($bioResult.message)"
+        }
+    }
+
     if ($Logs) {
         Write-Host "Consultando logs de auditoria (limit=$Limit, offset=$Offset)..."
         $logsResult = Invoke-RestMethod `
@@ -83,8 +101,9 @@ try {
         $logsResult | ConvertTo-Json -Depth 8
     }
 
-    if (-not $ReadTag -and -not $ReadQr -and -not $Logs) {
-        Write-Host "Health OK. Para testar a tag use -ReadTag; para QR Code use -ReadQr; para logs use -Logs."
+    if (-not $ReadTag -and -not $ReadQr -and -not $ReadBiometric -and -not $Logs) {
+        Write-Host "Health OK. Para testar a tag use -ReadTag; para QR Code use -ReadQr;"
+        Write-Host "para a digital use -ReadBiometric; para logs use -Logs."
     }
 }
 catch {

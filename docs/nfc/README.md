@@ -44,7 +44,7 @@ NTAG213/215/216 ou MIFARE Ultralight.
 | `app/.../rest/NfcRestApi.java` | Rotas, autenticação Bearer e auditoria. |
 | `app/.../rest/PonteNfc.java` | Leva a leitura da tela até o pedido HTTP que está esperando. |
 | `docs/nfc/openapi.yaml` | Swagger (OpenAPI 3) da API. |
-| `scripts/test-api.ps1` | Script de teste do professor (cópia sem alterações). |
+| `scripts/test-api.ps1` | Script de teste do professor, com a opção `-ReadBiometric` acrescentada. |
 | `scripts/test-api.sh` | O mesmo teste em bash, para Linux e macOS (mesmos parâmetros). |
 | `apps-script/TesteNfc.gs` | Chamada de teste a partir do Google Apps Script. |
 
@@ -83,6 +83,7 @@ Activity em primeiro plano. Tocar na notificação abre a tela.
 Set-Content .\appnfc-test-token.txt "<token copiado da tela>"
 .\scripts\test-api.ps1 -Ip 192.168.0.104              # só /health
 .\scripts\test-api.ps1 -Ip 192.168.0.104 -ReadTag     # encoste a tag em até 30 s
+.\scripts\test-api.ps1 -Ip 192.168.0.104 -ReadBiometric  # digital (leitor simulado)
 .\scripts\test-api.ps1 -Ip 192.168.0.104 -Logs -Limit 10
 ```
 
