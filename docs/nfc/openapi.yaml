@@ -116,6 +116,57 @@ paths:
           $ref: "#/components/responses/Erro"
         "401":
           $ref: "#/components/responses/Erro"
+  /v1/biometric/identify:
+    post:
+      summary: Captura uma digital e devolve o e-mail do professor
+      description: |
+        Mesmo servidor e mesmo token do NFC. Por enquanto o leitor é simulado
+        (FakeFingerprintReader/Matcher, `mode: simulado`), que sempre identifica
+        o professor de teste. Uma captura por vez.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 35
+                  default: 30
+            example: {}
+      responses:
+        "200":
+          description: Digital lida. `identified` diz se o professor foi encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Biometria"
+        "400":
+          $ref: "#/components/responses/Erro"
+        "401":
+          $ref: "#/components/responses/Erro"
+        "408":
+          description: Nenhuma digital lida no tempo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Já existe uma captura em andamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: Leitor não configurado ou com erro
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
   /v1/audit/logs:
     get:
       summary: Chamadas registradas, da mais recente para a mais antiga
@@ -206,6 +257,36 @@ components:
           type: boolean
         readPending:
           type: boolean
+        biometricAvailable:
+          type: boolean
+        biometricMode:
+          type: string
+          nullable: true
+          example: simulado
+        biometricPending:
+          type: boolean
+        correlationId:
+          type: string
+    Biometria:
+      type: object
+      properties:
+        success:
+          type: boolean
+        identified:
+          type: boolean
+        email:
+          type: string
+          nullable: true
+          example: professor.teste@unifor.br
+        message:
+          type: string
+          example: Professor identificado com sucesso.
+        mode:
+          type: string
+          example: simulado
+        readAt:
+          type: string
+          format: date-time
         correlationId:
           type: string
     Leitura:

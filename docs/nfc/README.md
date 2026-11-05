@@ -139,6 +139,7 @@ arquivo em <https://editor.swagger.io>.
 | `GET /health` | Estado do serviço e do NFC (`nfcScreenOpen`, `readPending`...). |
 | `POST /v1/nfc/read` | Espera a próxima tag (padrão 30 s, `timeoutSeconds` de 1 a 35). Códigos: 200, 408 (sem tag), 409 (outra leitura esperando ou modo de gravação), 503 (tela fechada ou NFC desligado). |
 | `POST /v1/qr/read` | 501. O QR Code ainda não foi integrado neste app. |
+| `POST /v1/biometric/identify` | Captura a digital e devolve `identified` e `email`. Por enquanto o leitor é **simulado** (sem Hamster DX). Códigos: 200, 408, 409 (outra captura em andamento), 503 (erro no leitor). A API também liga pela tela "Teste Biometria", que mostra IP, porta e token. |
 | `GET /v1/audit/logs?limit=1..50&offset=0..10000` | Chamadas registradas, da mais recente para a mais antiga. |
 
 Todas exigem `Authorization: Bearer <token>`; sem ele, a resposta é 401. O

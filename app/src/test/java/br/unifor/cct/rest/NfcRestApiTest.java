@@ -21,7 +21,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import br.unifor.cct.biometria.ResultadoBiometria;
 import br.unifor.cct.nfc.ResultadoNfc;
 
 /** Sobe o ServidorHttp numa porta livre e chama a API como o test-api.ps1 faz. */
@@ -32,13 +34,28 @@ public class NfcRestApiTest {
     private PonteNfc ponte;
     private ServidorHttp servidor;
     private String base;
+    /** O que o leitor simulado devolve em cada POST /v1/biometric/identify. */
+    private volatile Supplier<CompletableFuture<ResultadoBiometria>> leitor;
 
     @Before
     public void setUp() throws Exception {
         ponte = new PonteNfc();
         ponte.setNfc(true, true);
         ponte.setTelaAberta(true);
-        servidor = new ServidorHttp(0, new NfcRestApi(ponte, new Auditoria(), () -> TOKEN, "teste"));
+        leitor = () -> CompletableFuture.completedFuture(
+                new ResultadoBiometria(true, "professor.teste@unifor.br", "Professor identificado com sucesso."));
+        IdentificadorBiometria biometria = new IdentificadorBiometria() {
+            @Override
+            public CompletableFuture<ResultadoBiometria> identificar() {
+                return leitor.get();
+            }
+
+            @Override
+            public String modo() {
+                return "simulado";
+            }
+        };
+        servidor = new ServidorHttp(0, new NfcRestApi(ponte, new Auditoria(), () -> TOKEN, "teste", biometria));
         servidor.iniciar();
         base = "http://127.0.0.1:" + servidor.getPorta();
     }
@@ -212,6 +229,87 @@ public class NfcRestApiTest {
     }
 
     // --------------------------------------------------------------- apoio
+
+    // ----------------------------------------------------------- biometria
+
+    @Test
+    public void biometriaDevolveOEmailDoProfessor() throws Exception {
+        Http r = chamar("POST", "/v1/biometric/identify", TOKEN, "{}");
+        assertEquals(200, r.status);
+        assertTrue(r.json.getBoolean("identified"));
+        assertEquals("professor.teste@unifor.br", r.json.getString("email"));
+        assertEquals("simulado", r.json.getString("mode"));
+    }
+
+    @Test
+    public void biometriaNaoReconhecidaDa200ComIdentifiedFalse() throws Exception {
+        leitor = () -> CompletableFuture.completedFuture(
+                new ResultadoBiometria(false, null, "Digital nao reconhecida. Tente novamente."));
+        Http r = chamar("POST", "/v1/biometric/identify", TOKEN, null);
+        assertEquals(200, r.status);
+        assertFalse(r.json.getBoolean("identified"));
+        assertTrue(r.json.isNull("email"));
+    }
+
+    @Test
+    public void biometriaSemDigitalDa408() throws Exception {
+        leitor = CompletableFuture::new;
+        assertEquals(408, chamar("POST", "/v1/biometric/identify", TOKEN, "{\"timeoutSeconds\":1}").status);
+    }
+
+    @Test
+    public void erroDoLeitorDa503() throws Exception {
+        leitor = () -> {
+            CompletableFuture<ResultadoBiometria> f = new CompletableFuture<>();
+            f.completeExceptionally(new IllegalStateException("leitor desconectado"));
+            return f;
+        };
+        Http r = chamar("POST", "/v1/biometric/identify", TOKEN, "{}");
+        assertEquals(503, r.status);
+        assertTrue(r.json.getString("message").contains("leitor desconectado"));
+    }
+
+    @Test
+    public void segundaCapturaAoMesmoTempoDa409() throws Exception {
+        CompletableFuture<ResultadoBiometria> presa = new CompletableFuture<>();
+        leitor = () -> presa;
+        CompletableFuture<Http> primeira = CompletableFuture.supplyAsync(() -> {
+            try {
+                return chamar("POST", "/v1/biometric/identify", TOKEN, "{\"timeoutSeconds\":3}");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        for (int i = 0; i < 50 && !chamar("GET", "/health", TOKEN, null).json.getBoolean("biometricPending"); i++) {
+            Thread.sleep(20);
+        }
+        assertEquals(409, chamar("POST", "/v1/biometric/identify", TOKEN, "{}").status);
+        presa.complete(new ResultadoBiometria(true, "a@unifor.br", "ok"));
+        assertEquals(200, primeira.get(5, TimeUnit.SECONDS).status);
+    }
+
+    @Test
+    public void healthMostraOModoDaBiometria() throws Exception {
+        Http r = chamar("GET", "/health", TOKEN, null);
+        assertTrue(r.json.getBoolean("biometricAvailable"));
+        assertEquals("simulado", r.json.getString("biometricMode"));
+        assertEquals(405, chamar("GET", "/v1/biometric/identify", TOKEN, null).status);
+    }
+
+    @Test
+    public void semLeitorConfiguradoDa503() throws Exception {
+        ServidorHttp outro = new ServidorHttp(0, new NfcRestApi(ponte, new Auditoria(), () -> TOKEN, "teste"));
+        outro.iniciar();
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(
+                    "http://127.0.0.1:" + outro.getPorta() + "/v1/biometric/identify").openConnection();
+            c.setRequestMethod("POST");
+            c.setRequestProperty("Authorization", "Bearer " + TOKEN);
+            assertEquals(503, c.getResponseCode());
+        } finally {
+            outro.parar();
+        }
+    }
 
     /** Faz o papel da tela: entrega a leitura assim que o pedido começa a esperar. */
     private void entregarAoIniciar(ResultadoNfc resultado) {
