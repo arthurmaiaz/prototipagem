@@ -1,0 +1,38 @@
+# Rota de biometria pelo túnel HTTPS (cloudflared), em 05/11/2026.
+# Caminho: internet -> Cloudflare -> PC -> cabo USB (adb forward tcp:8787) -> celular.
+# Por isso as chamadas pelo túnel aparecem no log com clientIp 127.0.0.1.
+# O token e a URL do túnel (temporária, quick tunnel) foram omitidos: <token>, <tunel>.
+
+$ curl -s -w "\n[HTTP %{http_code}]\n" <tunel>/health                       # sem token
+{"success":false,"message":"Token ausente ou inválido. Use Authorization: Bearer <token>.","correlationId":"84a4cdb0-7edd-47e2-b386-7c776d0f9d1e"}
+[HTTP 401]
+
+$ curl -s -w "\n[HTTP %{http_code}]\n" -X POST -H "Authorization: Bearer <token>" \
+       -H "Content-Type: application/json" -d '{"timeoutSeconds":30}' <tunel>/v1/biometric/identify
+{"success":true,"identified":true,"email":"professor.teste@unifor.br","message":"Professor identificado com sucesso.","mode":"simulado","readAt":"2026-11-05T19:54:44.921275Z","correlationId":"a72142f2-9a2e-42cf-be3e-1f88534b795a"}
+[HTTP 200]
+
+# Log de auditoria do celular depois dos testes. A entrada 21 (19:53:04 UTC) é o
+# testarBiometria() rodado no editor do Google Apps Script, pelo túnel: HTTP 200.
+# As entradas com 10.231.188.206 são do PC pela Wi-Fi; as demais com 127.0.0.1
+# são o curl acima e testes pelo cabo USB.
+
+$ curl -s -H "Authorization: Bearer <token>" "http://10.231.188.56:8787/v1/audit/logs?limit=50"
+id  timestamp (UTC)              clientIp        método rota                     status ms     correlationId
+27  2026-11-05T19:54:44.921325Z  127.0.0.1       POST   /v1/biometric/identify   200    1001   a72142f2-9a2e-42cf-be3e-1f88534b795a
+26  2026-11-05T19:54:42.894978Z  127.0.0.1       GET    /health                  401    0      84a4cdb0-7edd-47e2-b386-7c776d0f9d1e
+25  2026-11-05T19:54:41.341171Z  10.231.188.206  POST   /v1/biometric/identify   200    1003   9e21f34c-17b9-40c9-81a5-4149f1778221
+24  2026-11-05T19:54:40.248880Z  10.231.188.206  GET    /health                  200    0      9e21f34c-17b9-40c9-81a5-4149f1778221
+23  2026-11-05T19:54:22.834389Z  10.231.188.206  GET    /v1/audit/logs           200    1      f9593695-67af-48e6-b2a3-3dd9353c997d
+22  2026-11-05T19:53:26.504452Z  10.231.188.206  GET    /v1/audit/logs           200    0      0ec3eb7a-e8e1-42a2-a44a-131a0e95eb91
+21  2026-11-05T19:53:04.402573Z  127.0.0.1       POST   /v1/biometric/identify   200    1005   f19f9398-f133-4da7-9b90-ff8912d88b78
+20  2026-11-05T19:48:28.216408Z  10.231.188.206  GET    /v1/audit/logs           200    0      c3a1ca42-d8d6-4ca5-8bde-89fad6904841
+19  2026-11-05T19:48:27.978663Z  10.231.188.206  POST   /v1/biometric/identify   200    1002   c3a1ca42-d8d6-4ca5-8bde-89fad6904841
+18  2026-11-05T19:48:26.639034Z  10.231.188.206  GET    /health                  200    0      c3a1ca42-d8d6-4ca5-8bde-89fad6904841
+17  2026-11-05T19:48:19.424489Z  127.0.0.1       GET    /health                  200    0      2a9c33f3-587f-4dab-be49-0caf52201b46
+16  2026-11-05T19:48:17.162255Z  10.231.188.206  GET    /health                  200    0      bdb2a2a0-cff0-40cd-8cea-7bb4eab52352
+15  2026-11-05T19:45:40.696848Z  127.0.0.1       GET    /health                  401    0      f4b350ab-4e38-4762-912f-ff0456138d8e
+14  2026-11-05T19:45:32.773414Z  127.0.0.1       GET    /v1/audit/logs           200    2      dcb836f0-1bb4-4684-b106-12eb97e95690
+13  2026-11-05T19:39:57.743770Z  127.0.0.1       POST   /v1/biometric/identify   200    1004   50a35679-240a-4dfd-85c1-5419e6061f4b
+12  2026-11-05T19:39:55.732874Z  127.0.0.1       GET    /health                  200    0      410c35e5-16a6-4545-8a18-630037b5b72b
+11  2026-11-05T19:39:53.051393Z  127.0.0.1       GET    /health                  401    0      1624e33f-e751-4d24-bfeb-f779c29b8843

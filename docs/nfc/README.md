@@ -199,6 +199,26 @@ No projeto do Apps Script:
     `testarLeituraNfc` no Apps Script, com HTTP 200 e PAT-001.
   - `evidencias/2026-10-16-aba-leituras-nfc.png`: as chamadas `/health` e
     `/v1/nfc/read` gravadas na aba `leituras_nfc`.
+- **Biometria pela API, em 05/11/2026** (mesmo celular, leitor
+  **simulado**, sem o Hamster DX):
+  - `evidencias/2026-11-05-biometria-wifi.txt`: o `test-api.sh
+    -ReadBiometric` direto pela Wi-Fi (PC e celular na mesma rede), com
+    `identified: true`.
+  - `evidencias/2026-11-05-biometria-tunel-e-logs.txt`: a rota pelo túnel
+    HTTPS (401 sem token, 200 com token) e o `/v1/audit/logs`. A entrada 21
+    é o `testarBiometria()` rodado no Apps Script, com HTTP 200.
+  - `evidencias/2026-11-05-apps-script-registro-execucao-biometria.png`: o
+    `testarBiometria` no Apps Script, com HTTP 200 e `identified: true`.
+  - `evidencias/2026-11-05-aba-leituras-biometria.png`: a mesma chamada
+    gravada na aba `leituras_biometria`, criada pelo script. O
+    `correlationId` `f19f9398-…` é o mesmo nos dois prints e na entrada 21
+    do log do celular.
+  - `evidencias/2026-11-05-tela-teste-biometria-api-ligada.jpg`: tela
+    "Teste Biometria" com o professor identificado e a API no ar (token
+    tarjado). O e-mail é o do professor de teste do leitor simulado.
+  - Na rede Wi-Fi "UNIFOR" o teste direto falhou: o PC e o celular ficam em
+    sub-redes diferentes e a rede isola os aparelhos. Use outra rede (ex.:
+    o roteador do celular) ou o cabo USB (`adb forward tcp:8787 tcp:8787`).
 
 ## Limitações
 
