@@ -10,9 +10,8 @@
 //   TOKEN_PATH  arquivo com o token          (padrão ../appnfc-test-token.txt)
 //   ATRASO_MS   tempo "esperando" a leitura  (padrão 2000)
 //
-// Diferenças do app real: o QR Code devolve uma leitura de exemplo (no app ainda
-// é 501, porque a Fase 2 não foi integrada), e NFC/digital "leem" sozinhos depois
-// de ATRASO_MS, sem tag nem dedo.
+// Diferença do app real: NFC, QR Code e digital "leem" sozinhos depois de
+// ATRASO_MS, sem tag, câmera nem dedo.
 
 'use strict';
 
@@ -35,7 +34,9 @@ const auditoria = [];
 let proximoId = 1;
 let leituraNfc = false;
 let capturando = false;
+let leituraQr = false;
 let contador = 0;
+let contadorQr = 0;
 
 function sortear(lista) {
   return lista[Math.floor(Math.random() * lista.length)];
@@ -99,6 +100,9 @@ async function health() {
     biometricAvailable: true,
     biometricMode: 'simulado',
     biometricPending: capturando,
+    qrAvailable: true,
+    qrScreenOpen: true,
+    qrPending: leituraQr,
   }];
 }
 
@@ -130,16 +134,47 @@ async function lerNfc(corpo, extra) {
   }];
 }
 
-async function lerQr(corpo) {
+// Mesmo formato do app real (NfcRestApi.lerQr): campos do app (success, valid,
+// patrimony, message) mais os da PoC de QR Code (status, text, format, durationMs).
+// Os textos são os mesmos dos exemplos em docs/qr/exemplos.
+const TEXTOS_QR = ['PAT-001', 'PAT-002', 'PAT-003', 'projetor:PAT-004'];
+const TEXTOS_QR_RECUSADOS = ['projetor:1', 'https://exemplo.com/nao-e-projetor'];
+
+// Igual ao CodigoQr.extrairPatrimonio do app.
+function extrairPatrimonio(texto) {
+  let s = String(texto).trim();
+  if (s.toLowerCase().startsWith('projetor:')) s = s.slice('projetor:'.length).trim();
+  s = s.toUpperCase();
+  return /^PAT-\d{3,}$/.test(s) ? s : null;
+}
+
+async function lerQr(corpo, extra) {
   const erro = validarCorpo(corpo);
   if (erro) return erro;
-  await esperar(ATRASO_MS);
-  const patrimonio = sortear(PATRIMONIOS);
+  if (leituraQr) return falha(409, 'Já existe uma leitura de QR Code em andamento.');
+  leituraQr = true;
+  const inicio = Date.now();
+  try {
+    await esperar(ATRASO_MS);
+  } finally {
+    leituraQr = false;
+  }
+  // A cada 4 leituras, um QR que não é de projetor.
+  contadorQr++;
+  const texto = contadorQr % 4 === 0 ? sortear(TEXTOS_QR_RECUSADOS) : sortear(TEXTOS_QR);
+  const patrimonio = extrairPatrimonio(texto);
+  extra.patrimonio = patrimonio;
   return [200, {
     success: true,
-    text: patrimonio,
+    status: 'ok',
+    valid: patrimonio !== null,
+    patrimony: patrimonio,
+    message: patrimonio
+      ? `Projetor ${patrimonio} identificado.`
+      : 'QR Code lido, mas não é de um projetor (use o padrão PAT-001).',
+    text: texto,
     format: 'QR_CODE',
-    message: `QR Code lido: ${patrimonio} (simulado).`,
+    durationMs: Date.now() - inicio,
     readAt: new Date().toISOString(),
   }];
 }
@@ -180,7 +215,7 @@ async function logs(url) {
 const ROTAS = {
   '/health': { metodo: 'GET', tratar: health },
   '/v1/nfc/read': { metodo: 'POST', tratar: (ctx) => lerNfc(ctx.corpo, ctx.extra) },
-  '/v1/qr/read': { metodo: 'POST', tratar: (ctx) => lerQr(ctx.corpo) },
+  '/v1/qr/read': { metodo: 'POST', tratar: (ctx) => lerQr(ctx.corpo, ctx.extra) },
   '/v1/biometric/identify': { metodo: 'POST', tratar: (ctx) => identificarDigital(ctx.corpo) },
   '/v1/audit/logs': { metodo: 'GET', tratar: (ctx) => logs(ctx.url) },
 };

@@ -51,8 +51,9 @@ CELULAR_IP=127.0.0.1 npm start       # terminal 2: servidor web
 Diferenças em relação ao app real:
 - **NFC e digital** "leem" sozinhos depois de 2 s (`ATRASO_MS`). Uma em cada quatro leituras de NFC
   vem sem patrimônio, e cerca de uma em cada quatro digitais não é reconhecida.
-- **QR Code** devolve uma leitura de exemplo. No app real essa rota ainda responde 501, porque a
-  leitura de QR (Fase 2) não foi integrada.
+- **QR Code** "lê" sozinho depois de 2 s, no mesmo formato do app real: `PAT-001` a `PAT-003` ou
+  `projetor:PAT-004` (prefixo da PoC). Uma em cada quatro leituras é um QR que não é de projetor
+  (`projetor:1` ou uma URL), que vem com `valid: false` e `patrimony: null`.
 - **Logs** ficam só na memória e são apagados quando o simulador para.
 
 ## Procurar celular
