@@ -5,7 +5,8 @@
   "description": "Servidor web de demonstração que envia comandos REST para o app br.unifor.cct no celular",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "celular": "node celular-simulado.js"
   },
   "engines": {
     "node": ">=18"

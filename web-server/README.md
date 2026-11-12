@@ -37,6 +37,24 @@ CELULAR_IP=10.50.103.53 npm start
 Variáveis opcionais: `CELULAR_PORTA` (8787), `TOKEN_PATH`, `PORTA` (3000) e `HOST` (127.0.0.1).
 Use `HOST=0.0.0.0` para abrir a página a partir de outro computador da rede.
 
+## Sem um Android: celular simulado
+
+O app só roda em Android. Para demonstrar sem um, rode o celular simulado em outro terminal. Ele
+responde às mesmas rotas, na porta 8787 e com o mesmo token, usando dados de exemplo:
+
+```bash
+cd web-server
+npm run celular                      # terminal 1: celular simulado em 127.0.0.1:8787
+CELULAR_IP=127.0.0.1 npm start       # terminal 2: servidor web
+```
+
+Diferenças em relação ao app real:
+- **NFC e digital** "leem" sozinhos depois de 2 s (`ATRASO_MS`). Uma em cada quatro leituras de NFC
+  vem sem patrimônio, e cerca de uma em cada quatro digitais não é reconhecida.
+- **QR Code** devolve uma leitura de exemplo. No app real essa rota ainda responde 501, porque a
+  leitura de QR (Fase 2) não foi integrada.
+- **Logs** ficam só na memória e são apagados quando o simulador para.
+
 ## Procurar celular
 
 O botão **Procurar celular** testa `GET /health`, na porta do campo, em todos os IPs das redes
