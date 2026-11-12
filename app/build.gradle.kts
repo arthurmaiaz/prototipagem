@@ -22,6 +22,17 @@ if (!sdkNitgen.exists()) {
         "SDK da Nitgen não encontrado em app/libs/nbiobspjni-2.0.0.10.aar. Veja app/libs/README.md.")
 }
 
+// Assinatura de release, no mesmo esquema da PoC de QR Code: o keystore e as
+// senhas ficam no keystore.properties (fora do Git; modelo em
+// keystore.properties.sample). Sem ele, o release é assinado com a chave de debug.
+val keystoreProperties = Properties().apply {
+    val arquivo = rootProject.file("keystore.properties")
+    if (arquivo.exists()) {
+        arquivo.inputStream().use { load(it) }
+    }
+}
+val temKeystoreRelease = keystoreProperties.getProperty("storeFile", "").isNotBlank()
+
 fun stringJava(valor: String): String =
     "\"" + valor.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -48,8 +59,22 @@ android {
             stringJava(localProperties.getProperty("nitgen.serial", "")))
     }
 
+    signingConfigs {
+        if (temKeystoreRelease) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // v4 gera o .apk.idsig ao lado do APK, como no APK da PoC.
+                enableV4Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName(if (temKeystoreRelease) "release" else "debug")
             optimization {
                 enable = false
             }
