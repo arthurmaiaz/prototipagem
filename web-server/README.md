@@ -37,6 +37,17 @@ CELULAR_IP=10.50.103.53 npm start
 Variáveis opcionais: `CELULAR_PORTA` (8787), `TOKEN_PATH`, `PORTA` (3000) e `HOST` (127.0.0.1).
 Use `HOST=0.0.0.0` para abrir a página a partir de outro computador da rede.
 
+## Procurar celular
+
+O botão **Procurar celular** testa `GET /health`, na porta do campo, em todos os IPs das redes
+locais do PC (até um /24 por interface) e em `127.0.0.1` (caso de `adb forward`). Os aparelhos que
+responderem aparecem na lista: verde quando o token confere e vermelho quando é a API, mas o token
+não confere. Basta clicar num deles para usá-lo. Se só um responder com o token certo, ele é
+escolhido automaticamente. A procura leva cerca de 6 s.
+
+O jeito mais simples para a demonstração é ligar o **hotspot (roteador) do celular** e conectar o
+PC nele. Assim os dois ficam na mesma rede e a procura acha o celular.
+
 ## Rede
 
 O PC e o celular precisam se enxergar. Na rede da UNIFOR os dispositivos ficam isolados, então

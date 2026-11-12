@@ -87,6 +87,23 @@ button.carregando { opacity: 1; outline: 3px solid color-mix(in srgb, var(--prim
 
 .aviso { margin: 12px 0 0; font-weight: 600; }
 
+.procura { margin-top: 14px; padding: 10px 12px; border-radius: 6px; background: var(--fundo); font-size: .9rem; }
+.procura p { margin: 0 0 8px; }
+.procura p:last-child { margin-bottom: 0; }
+.procura.erro { background: var(--erro-fundo); color: var(--erro); }
+.achado {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+  font-weight: 500;
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  color: var(--texto);
+}
+.achado.ok { border-color: var(--ok); color: var(--ok); }
+.achado.erro { border-color: var(--erro); color: var(--erro); }
+
 .resumo { padding: 10px 12px; border-radius: 6px; background: var(--fundo); font-size: .92rem; overflow-wrap: anywhere; }
 .resumo.ok { background: var(--ok-fundo); color: var(--ok); }
 .resumo.erro { background: var(--erro-fundo); color: var(--erro); }

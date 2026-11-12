@@ -20,6 +20,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const os = require('node:os');
 
 const PORTA = Number(process.env.PORTA || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -86,6 +87,71 @@ async function chamarCelular(opcao, query) {
   };
 }
 
+// ---- Procurar celular -------------------------------------------------------
+// Testa GET /health na porta configurada em cada IP das redes locais deste PC
+// (no máximo um /24 por interface) e em 127.0.0.1 (caso de adb forward).
+// Qualquer resposta HTTP conta: 200 = token certo, 401 = é a API, mas o token
+// do arquivo não confere.
+
+function ipParaNumero(ip) {
+  return ip.split('.').reduce((total, parte) => total * 256 + Number(parte), 0);
+}
+
+function numeroParaIp(n) {
+  return [24, 16, 8, 0].map((desloc) => Math.floor(n / 2 ** desloc) % 256).join('.');
+}
+
+function candidatosDaRede() {
+  const candidatos = new Set(['127.0.0.1']);
+  const redes = [];
+  for (const enderecos of Object.values(os.networkInterfaces())) {
+    for (const end of enderecos || []) {
+      if (end.family !== 'IPv4' || end.internal) continue;
+      const prefixo = Math.max(24, Number(end.cidr.split('/')[1]));
+      const tamanho = 2 ** (32 - prefixo);
+      const rede = Math.floor(ipParaNumero(end.address) / tamanho) * tamanho;
+      redes.push(`${numeroParaIp(rede)}/${prefixo}`);
+      for (let n = rede + 1; n < rede + tamanho - 1; n++) {
+        const ip = numeroParaIp(n);
+        if (ip !== end.address) candidatos.add(ip);
+      }
+    }
+  }
+  return { candidatos: [...candidatos], redes };
+}
+
+async function testarHealth(ip, porta, token) {
+  try {
+    const resposta = await fetch(`http://${ip}:${porta}/health`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Correlation-Id': crypto.randomUUID() },
+      signal: AbortSignal.timeout(1500),
+    });
+    const texto = await resposta.text();
+    let corpo;
+    try { corpo = JSON.parse(texto); } catch { corpo = texto; }
+    return { ip, porta, status: resposta.status, tokenOk: resposta.ok, corpo };
+  } catch {
+    return null;
+  }
+}
+
+async function procurarCelular(porta) {
+  const token = lerToken();
+  const { candidatos, redes } = candidatosDaRede();
+  const encontrados = [];
+  const fila = [...candidatos];
+  const inicio = Date.now();
+  const trabalhadores = Array.from({ length: 64 }, async () => {
+    while (fila.length) {
+      const achado = await testarHealth(fila.shift(), porta, token);
+      if (achado) encontrados.push(achado);
+    }
+  });
+  await Promise.all(trabalhadores);
+  encontrados.sort((a, b) => Number(b.tokenOk) - Number(a.tokenOk) || ipParaNumero(a.ip) - ipParaNumero(b.ip));
+  return { porta, redes, testados: candidatos.length, duracaoMs: Date.now() - inicio, encontrados };
+}
+
 function explicarErro(erro) {
   if (erro.name === 'TimeoutError') return 'o celular não respondeu a tempo';
   const causa = erro.cause && erro.cause.code;
@@ -142,6 +208,14 @@ const servidor = http.createServer(async (req, res) => {
       celular.porta = porta;
       console.log(`Alvo alterado para ${ip}:${porta}`);
       return enviarJson(res, 200, celular);
+    }
+
+    // Procura o celular nas redes locais, na porta configurada.
+    if (rota === '/api/procurar' && req.method === 'POST') {
+      const resultado = await procurarCelular(celular.porta);
+      console.log(`Procura em ${resultado.redes.join(', ') || 'só 127.0.0.1'}: ` +
+        `${resultado.encontrados.length} encontrado(s) em ${resultado.duracaoMs} ms`);
+      return enviarJson(res, 200, resultado);
     }
 
     // Opções: /api/health, /api/nfc, /api/qr, /api/biometria, /api/logs
