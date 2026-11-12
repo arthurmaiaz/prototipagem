@@ -360,7 +360,7 @@
                 android:id="@+id/cardFaq6"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="10dp"
                 android:background="@drawable/bg_card_action"
                 android:clickable="true"
                 android:elevation="2dp"
@@ -397,6 +397,100 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:text="Não. No sistema do CCT, nenhuma linha da aba 'reservas' é apagada. Quando uma reserva é cancelada, seu status muda de ATIVA para CANCELADA e o horário de cancelamento é registrado para preservação total do histórico institucional."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 7: Envio de informações pela API -->
+            <LinearLayout
+                android:id="@+id/cardFaq7"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Como as informações são enviadas pela API?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq7"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq7"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Cada operação do terminal (reservar, devolver, cancelar, consultar ou listar professores) é enviada pela internet, via HTTPS, ao Web App do Google Apps Script. O envio é um POST em JSON com a ação, o token que autentica o terminal, o e-mail do professor, o código do projetor (ex.: PAT-001) e o horário. O Apps Script confere o token e as regras (conflito de horário, duração máxima, horário já passado), grava na planilha do Google Sheets e responde se deu certo, com o número da reserva ou a mensagem de erro. Nenhum dado biométrico é enviado.\n\nAlém disso, o próprio celular pode ligar uma API REST local (porta 8787, protegida por token Bearer). Por ela, um computador da mesma rede, ou o Apps Script por um túnel HTTPS, pede a leitura da tag NFC, do QR Code ou da digital e recebe a resposta em JSON. Todas as chamadas ficam registradas na auditoria (/v1/audit/logs)."
+                    android:textColor="@color/unifor_text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- FAQ 8: Wi-Fi bloqueada e uso do celular como HOST -->
+            <LinearLayout
+                android:id="@+id/cardFaq8"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_card_action"
+                android:clickable="true"
+                android:elevation="2dp"
+                android:focusable="true"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="E se a rede Wi-Fi bloquear a comunicação?"
+                        android:textColor="@color/unifor_text_primary"
+                        android:textSize="14.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivChevronFaq8"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Expandir"
+                        android:src="@drawable/ic_expand_more" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvRespostaFaq8"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Redes institucionais, como a Wi-Fi da UNIFOR, isolam os aparelhos: o computador e o celular ficam em sub-redes diferentes e um não enxerga o outro. Assim a API local do celular (porta 8787) não responde.\n\nNesse caso, use o celular como HOST: ative o Roteador Wi-Fi (hotspot) em Configurações › Conexões › Roteador Wi-Fi e ancoragem e conecte o computador a essa rede. Os dois passam a estar na mesma rede. Use o IP e o token mostrados na tela da API, ou o botão Procurar celular do servidor web. O envio das reservas para o Google Sheets continua funcionando pelos dados móveis do celular.\n\nSem hotspot, a alternativa é o cabo USB: rode adb forward tcp:8787 tcp:8787 no computador e acesse a API em 127.0.0.1:8787."
                     android:textColor="@color/unifor_text_secondary"
                     android:textSize="13sp"
                     android:visibility="gone" />

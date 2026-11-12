@@ -324,6 +324,7 @@
 
     <!-- Barra Inferior de Entrada de Mensagem -->
     <LinearLayout
+        android:id="@+id/barraMensagemAssistente"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#FFFFFF"
