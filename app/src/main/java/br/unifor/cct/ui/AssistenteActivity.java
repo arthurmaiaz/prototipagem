@@ -8,6 +8,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import br.unifor.cct.R;
 
 /**
@@ -41,6 +45,8 @@ public class AssistenteActivity extends Activity {
 
         btnVoltar.setOnClickListener(v -> finish());
 
+        aplicarAreaSeguraNaBarraDeMensagem();
+
         chipSugestao1.setOnClickListener(v -> preencherSugestao(
                 "Como realizar uma reserva de projetor?",
                 "Para reservar, selecione o módulo 'Reservar' na tela inicial, informe o ID do professor e o código patrimonial do projetor (ex: PAT-001)."));
@@ -64,6 +70,31 @@ public class AssistenteActivity extends Activity {
                 tvFeedback.setVisibility(View.VISIBLE);
                 tvFeedback.setText(R.string.assistente_envio_pendente);
             }
+        });
+    }
+
+    /**
+     * Com o targetSdk atual o Android desenha a tela atrás das barras do sistema
+     * (edge-to-edge). Sem isto, a barra de mensagem fica embaixo dos botões/gestos
+     * do celular e o teclado a cobre. O espaço de baixo é o maior entre a barra de
+     * navegação e o teclado aberto.
+     */
+    private void aplicarAreaSeguraNaBarraDeMensagem() {
+        View barra = findViewById(R.id.barraMensagemAssistente);
+        if (barra == null) {
+            return;
+        }
+        final int baseLeft = barra.getPaddingLeft();
+        final int baseTop = barra.getPaddingTop();
+        final int baseRight = barra.getPaddingRight();
+        final int baseBottom = barra.getPaddingBottom();
+        ViewCompat.setOnApplyWindowInsetsListener(barra, (v, insets) -> {
+            Insets barras = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets teclado = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(baseLeft, baseTop, baseRight,
+                    baseBottom + Math.max(barras.bottom, teclado.bottom));
+            return insets;
         });
     }
 

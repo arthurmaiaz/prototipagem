@@ -29,6 +29,8 @@ public class FaqActivity extends Activity {
         configurarItemFaq(R.id.cardFaq4, R.id.tvRespostaFaq4, R.id.ivChevronFaq4);
         configurarItemFaq(R.id.cardFaq5, R.id.tvRespostaFaq5, R.id.ivChevronFaq5);
         configurarItemFaq(R.id.cardFaq6, R.id.tvRespostaFaq6, R.id.ivChevronFaq6);
+        configurarItemFaq(R.id.cardFaq7, R.id.tvRespostaFaq7, R.id.ivChevronFaq7);
+        configurarItemFaq(R.id.cardFaq8, R.id.tvRespostaFaq8, R.id.ivChevronFaq8);
     }
 
     private void configurarItemFaq(int cardId, int respostaId, int chevronId) {

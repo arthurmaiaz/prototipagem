@@ -123,7 +123,8 @@
         <activity
             android:name=".ui.AssistenteActivity"
             android:exported="false"
-            android:label="Assistente Virtual" />
+            android:label="Assistente Virtual"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ui.LerQrCodeActivity"
