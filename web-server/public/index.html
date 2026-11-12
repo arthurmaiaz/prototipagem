@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GAC — Servidor Web</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>GAC — Servidor Web</h1>
+    <p>Cada botão envia uma requisição REST (HTTP + JSON) para o celular.</p>
+  </header>
+
+  <main>
+    <section class="cartao">
+      <h2>Celular</h2>
+      <form id="form-alvo" class="alvo">
+        <label>IP <input id="ip" required></label>
+        <label>Porta <input id="porta" type="number" min="1" max="65535" required></label>
+        <button type="submit" class="secundario">Salvar</button>
+        <span id="estado" class="estado">—</span>
+      </form>
+    </section>
+
+    <section class="cartao">
+      <h2>Opções</h2>
+      <div class="botoes">
+        <button data-opcao="health">Status do celular</button>
+        <button data-opcao="nfc" data-aviso="Aproxime a tag NFC do celular (até 30 s)…">Ler NFC</button>
+        <button data-opcao="qr" data-aviso="Aponte a câmera do celular para o QR Code…">Ler QR Code</button>
+        <button data-opcao="biometria" data-aviso="Coloque o dedo no leitor de digital…">Ler digital</button>
+        <button data-opcao="logs">Logs de auditoria</button>
+      </div>
+      <p id="aviso" class="aviso" hidden></p>
+    </section>
+
+    <section class="cartao">
+      <h2>Resposta</h2>
+      <div id="resumo" class="resumo">Nenhuma requisição ainda.</div>
+      <pre id="json"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
