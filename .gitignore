@@ -25,3 +25,8 @@ appnfc-test-token.txt
 
 # Configuração local do VS Code
 .vscode/
+
+# Assinatura de release: senhas e keystore nunca vão para o repositório
+keystore.properties
+*.jks
+*.keystore
