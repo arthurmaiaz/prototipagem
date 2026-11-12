@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 
 import br.unifor.cct.biometria.ResultadoBiometria;
 import br.unifor.cct.nfc.ResultadoNfc;
+import br.unifor.cct.qr.ResultadoQr;
 
 /**
  * Rotas da API REST do NFC, no mesmo contrato do test-api.ps1 do professor
@@ -27,7 +28,7 @@ import br.unifor.cct.nfc.ResultadoNfc;
  * <pre>
  * GET  /health                          estado do serviço e do NFC
  * POST /v1/nfc/read                     espera a próxima tag e devolve o patrimônio
- * POST /v1/qr/read                      ainda não implementado (501)
+ * POST /v1/qr/read                      abre a câmera, espera o QR Code e devolve o patrimônio
  * POST /v1/biometric/identify           captura a digital e devolve o e-mail do professor
  * GET  /v1/audit/logs?limit=&offset=    chamadas registradas
  * </pre>
@@ -44,6 +45,9 @@ public class NfcRestApi implements ServidorHttp.Handler {
     public static final int LIMIT_MAXIMO = 50;
     public static final int OFFSET_MAXIMO = 10_000;
 
+    /** Quanto a rota de QR espera a tela da câmera abrir antes de desistir (503). */
+    static final long ESPERA_TELA_QR_MS = 5_000;
+
     private static final Pattern CORRELATION_ID = Pattern.compile("[A-Za-z0-9._:-]{1,100}");
 
     private final PonteNfc ponte;
@@ -52,6 +56,8 @@ public class NfcRestApi implements ServidorHttp.Handler {
     private final String versao;
     /** null: a rota de biometria responde 503. */
     private final IdentificadorBiometria biometria;
+    /** null: a rota de QR Code responde 501. */
+    private final PonteQr qr;
     private final AtomicBoolean capturando = new AtomicBoolean();
 
     /** @param token lido a cada pedido, porque pode ser trocado na tela */
@@ -61,6 +67,12 @@ public class NfcRestApi implements ServidorHttp.Handler {
 
     public NfcRestApi(PonteNfc ponte, Auditoria auditoria, Supplier<String> token, String versao,
                       IdentificadorBiometria biometria) {
+        this(ponte, auditoria, token, versao, biometria, null);
+    }
+
+    public NfcRestApi(PonteNfc ponte, Auditoria auditoria, Supplier<String> token, String versao,
+                      IdentificadorBiometria biometria, PonteQr qr) {
+        this.qr = qr;
         this.ponte = ponte;
         this.auditoria = auditoria;
         this.token = token;
@@ -102,9 +114,7 @@ public class NfcRestApi implements ServidorHttp.Handler {
             case "/v1/nfc/read":
                 return "POST".equals(metodo) ? lerNfc(req, json, patrimonio) : metodoErrado(json, "POST");
             case "/v1/qr/read":
-                return "POST".equals(metodo)
-                        ? falha(json, 501, "Leitura de QR Code ainda não integrada neste app.")
-                        : metodoErrado(json, "POST");
+                return "POST".equals(metodo) ? lerQr(req, json, patrimonio) : metodoErrado(json, "POST");
             case "/v1/biometric/identify":
                 return "POST".equals(metodo) ? identificarDigital(req, json) : metodoErrado(json, "POST");
             case "/v1/audit/logs":
@@ -128,7 +138,10 @@ public class NfcRestApi implements ServidorHttp.Handler {
                 .put("readPending", ponte.haPedidoPendente())
                 .put("biometricAvailable", biometria != null)
                 .put("biometricMode", biometria == null ? JSONObject.NULL : biometria.modo())
-                .put("biometricPending", capturando.get());
+                .put("biometricPending", capturando.get())
+                .put("qrAvailable", qr != null)
+                .put("qrScreenOpen", qr != null && qr.isTelaAberta())
+                .put("qrPending", qr != null && qr.haPedidoPendente());
         return 200;
     }
 
@@ -175,6 +188,64 @@ public class NfcRestApi implements ServidorHttp.Handler {
                 .put("urls", new JSONArray(resultado.getUrls()))
                 .put("readAt", Instant.now().toString());
         return 200;
+    }
+
+    /**
+     * Abre a câmera (a LerQrCodeActivity) se ela não estiver aberta e espera o
+     * próximo QR Code. A resposta traz os campos do padrão deste app (success,
+     * valid, patrimony, message) e também os da PoC de QR Code (status, text,
+     * format, durationMs), para os dois test-api.ps1 funcionarem.
+     */
+    private int lerQr(Requisicao req, JSONObject json, String[] patrimonio) throws JSONException {
+        if (qr == null) return falha(json, 501, "Leitura de QR Code ainda não integrada neste app.");
+        int timeoutS = timeoutSeconds(req, json);
+        if (timeoutS < 0) return 400;
+
+        long inicio = System.nanoTime();
+        long limite = inicio + TimeUnit.SECONDS.toNanos(timeoutS);
+        CompletableFuture<ResultadoQr> pedido = qr.abrirPedido();
+        if (pedido == null) return falha(json, 409, "Já existe uma leitura de QR Code em andamento.");
+        ResultadoQr resultado;
+        try {
+            if (!qr.isTelaAberta() && !(qr.abrirTela() && esperarTelaQr(Math.min(limite,
+                    inicio + TimeUnit.MILLISECONDS.toNanos(ESPERA_TELA_QR_MS))))) {
+                return falha(json, 503, "Não foi possível abrir a câmera no celular. "
+                        + "Abra a tela Ler QR Code no app e tente de novo.");
+            }
+            resultado = pedido.get(Math.max(0, limite - System.nanoTime()), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException e) {
+            falha(json, 408, "Nenhum QR Code foi lido em " + timeoutS + " s.");
+            json.put("status", "timeout").put("text", JSONObject.NULL);
+            return 408;
+        } catch (ExecutionException e) {
+            return falha(json, 503, e.getCause().getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return falha(json, 503, "Serviço encerrado durante a leitura.");
+        } finally {
+            qr.fecharPedido(pedido);
+        }
+
+        patrimonio[0] = resultado.getPatrimonio();
+        json.put("success", true)
+                .put("status", "ok")
+                .put("valid", resultado.isValido())
+                .put("patrimony", patrimonio[0] == null ? JSONObject.NULL : patrimonio[0])
+                .put("message", resultado.getMensagem())
+                .put("text", resultado.getTexto())
+                .put("format", resultado.getFormato())
+                .put("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - inicio))
+                .put("readAt", Instant.now().toString());
+        return 200;
+    }
+
+    /** @return true se a tela da câmera abriu antes do limite (em nanoTime). */
+    private boolean esperarTelaQr(long limiteNanos) throws InterruptedException {
+        while (!qr.isTelaAberta()) {
+            if (System.nanoTime() >= limiteNanos) return false;
+            Thread.sleep(50);
+        }
+        return true;
     }
 
     private int identificarDigital(Requisicao req, JSONObject json) throws JSONException {

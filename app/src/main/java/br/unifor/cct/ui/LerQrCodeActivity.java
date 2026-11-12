@@ -5,6 +5,7 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -17,10 +18,13 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
@@ -40,20 +44,36 @@ import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collections;
 
 import br.unifor.cct.R;
-import br.unifor.cct.model.Projetor;
+import br.unifor.cct.qr.CodigoQr;
+import br.unifor.cct.qr.GeradorQrCode;
+import br.unifor.cct.qr.LeitorQrImagem;
+import br.unifor.cct.qr.ResultadoQr;
+import br.unifor.cct.rest.PonteQr;
 
 /**
  * Tela institucional de leitura de QR Code para identificação de projetores (CCT - Unifor).
  * Realiza leitura em tempo real via câmera do aparelho, valida conformidade com o padrão
  * de patrimônio institucional ("PAT-001" conforme Projetor.codigoValido) e provê interface
  * responsiva com estados visuais claros para permissão, carregamento, sucesso e código inválido.
+ *
+ * Também atende a API REST (POST /v1/qr/read): enquanto esta tela está aberta,
+ * cada leitura é entregue ao pedido que estiver esperando na PonteQr. Quando é
+ * a própria API que abre a tela (EXTRA_PEDIDO_API), ela fecha sozinha depois de
+ * entregar a leitura.
  */
-public class LerQrCodeActivity extends Activity {
+public class LerQrCodeActivity extends Activity implements PonteQr.Ouvinte {
+
+    /** true quando a tela foi aberta pelo ServicoApiNfc para atender um pedido. */
+    public static final String EXTRA_PEDIDO_API = "br.unifor.cct.extra.PEDIDO_API";
+    private static final long FECHAR_APOS_API_MS = 1500;
 
     private static final int REQUEST_CAMERA_PERMISSION = 2001;
+    private static final int REQUEST_IMAGEM = 2002;
     private static final long DEBOUNCE_SCAN_MS = 2500;
 
     // Elementos da Interface
@@ -73,6 +93,8 @@ public class LerQrCodeActivity extends Activity {
     private Button btnLerNovamente;
     private Button btnUsarReserva;
     private Button btnDigitarManual;
+    private Button btnLerImagem;
+    private Button btnGerarQr;
 
     // Animação do Scanner
     private ObjectAnimator laserAnimator;
@@ -91,10 +113,17 @@ public class LerQrCodeActivity extends Activity {
     private String ultimoCodigoLido = null;
     private long ultimoScanTimestamp = 0;
 
+    // Ponte com a API REST
+    private final PonteQr ponteQr = PonteQr.padrao();
+    private boolean abertaPelaApi;
+    /** O seletor de imagem cobre esta tela, mas o pedido da API deve continuar esperando. */
+    private boolean escolhendoImagem;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ler_qr_code);
+        abertaPelaApi = getIntent().getBooleanExtra(EXTRA_PEDIDO_API, false);
 
         inicializarViews();
         configurarAnimacaoLaser();
@@ -118,6 +147,8 @@ public class LerQrCodeActivity extends Activity {
         btnLerNovamente = findViewById(R.id.btnLerNovamente);
         btnUsarReserva = findViewById(R.id.btnUsarReserva);
         btnDigitarManual = findViewById(R.id.btnDigitarManual);
+        btnLerImagem = findViewById(R.id.btnLerImagem);
+        btnGerarQr = findViewById(R.id.btnGerarQr);
     }
 
     private void configurarAnimacaoLaser() {
@@ -138,7 +169,44 @@ public class LerQrCodeActivity extends Activity {
 
         btnDigitarManual.setOnClickListener(v -> exibirDialogoEntradaManual());
 
+        btnLerImagem.setOnClickListener(v -> escolherImagem());
+
+        btnGerarQr.setOnClickListener(v -> exibirDialogoGerarQr());
+
         btnUsarReserva.setOnClickListener(v -> avancarParaReserva(tvCodigoLido.getText().toString()));
+    }
+
+    /*
+     * Como na TesteNfcActivity, a ponte usa onStart/onStop: o pedido de permissão
+     * da câmera passa por onPause, e isso não pode cancelar o pedido da API.
+     */
+    @Override
+    protected void onStart() {
+        super.onStart();
+        ponteQr.setOuvinte(this);
+        ponteQr.setTelaAberta(true);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (escolhendoImagem) return;    // a galeria volta para esta tela
+        ponteQr.setTelaAberta(false);
+        ponteQr.setOuvinte(null);
+    }
+
+    @Override
+    public void onPedidoIniciado() {
+        // Um pedido novo com o resultado anterior ainda na tela: volta a ler.
+        runOnUiThread(() -> {
+            reiniciarLeitura();
+            Toast.makeText(this, "Pedido do servidor: aponte a câmera para o QR Code.",
+                    Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    @Override
+    public void onPedidoEncerrado() {
     }
 
     @Override
@@ -388,7 +456,7 @@ public class LerQrCodeActivity extends Activity {
                 Result result = qrReader.decode(binaryBitmap);
                 if (result != null && result.getText() != null) {
                     String texto = result.getText().trim();
-                    runOnUiThread(() -> processarResultadoLeitura(texto));
+                    runOnUiThread(() -> processarResultadoLeitura(texto, ResultadoQr.FORMATO_QR));
                 }
             } catch (NotFoundException e) {
                 // Nenhum QR Code encontrado no frame atual: comportamento esperado
@@ -401,7 +469,7 @@ public class LerQrCodeActivity extends Activity {
         });
     }
 
-    private void processarResultadoLeitura(String conteudo) {
+    private void processarResultadoLeitura(String conteudo, String formato) {
         long agora = SystemClock.elapsedRealtime();
         if (conteudo.equals(ultimoCodigoLido) && (agora - ultimoScanTimestamp < DEBOUNCE_SCAN_MS)) {
             return;
@@ -409,10 +477,13 @@ public class LerQrCodeActivity extends Activity {
         ultimoCodigoLido = conteudo;
         isScanning = false;
 
-        boolean valido = Projetor.codigoValido(conteudo);
+        ResultadoQr resultado = new ResultadoQr(conteudo, formato);
+        boolean valido = resultado.isValido();
 
         layoutResultado.setVisibility(View.VISIBLE);
-        tvCodigoLido.setText(conteudo);
+        // Válido: mostra só o patrimônio ("projetor:PAT-001" vira "PAT-001"),
+        // que é o que o botão "Usar para reserva" repassa.
+        tvCodigoLido.setText(valido ? resultado.getPatrimonio() : conteudo);
 
         if (valido) {
             ivIconeResultado.setImageResource(R.drawable.ic_badge_verified);
@@ -432,6 +503,13 @@ public class LerQrCodeActivity extends Activity {
             btnUsarReserva.setEnabled(false);
             btnUsarReserva.setVisibility(View.GONE);
             tvCodigoLido.setTextColor(getColor(R.color.unifor_status_pending_text));
+        }
+
+        if (ponteQr.entregar(resultado)) {
+            Toast.makeText(this, "Leitura enviada ao servidor.", Toast.LENGTH_SHORT).show();
+            if (abertaPelaApi) {
+                tvCodigoLido.postDelayed(this::finish, FECHAR_APOS_API_MS);
+            }
         }
     }
 
@@ -468,11 +546,149 @@ public class LerQrCodeActivity extends Activity {
                 .setPositiveButton("Validar", (dialog, which) -> {
                     String texto = input.getText().toString().trim().toUpperCase();
                     if (!texto.isEmpty()) {
-                        processarResultadoLeitura(texto);
+                        processarResultadoLeitura(texto, ResultadoQr.FORMATO_MANUAL);
                     }
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
+    }
+
+    // =========================================================================
+    // Leitura de imagem da galeria
+    // =========================================================================
+
+    private void escolherImagem() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT)
+                .setType("image/*")
+                .addCategory(Intent.CATEGORY_OPENABLE);
+        escolhendoImagem = true;
+        try {
+            startActivityForResult(intent, REQUEST_IMAGEM);
+        } catch (android.content.ActivityNotFoundException e) {
+            escolhendoImagem = false;
+            Toast.makeText(this, "Nenhum app de galeria encontrado.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_IMAGEM) return;
+        escolhendoImagem = false;
+        Uri uri = data == null ? null : data.getData();
+        if (resultCode != RESULT_OK || uri == null) return;
+
+        isScanning = false;    // a câmera não deve atropelar a leitura da imagem
+        Toast.makeText(this, "Lendo a imagem...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String texto;
+            String erro = null;
+            try {
+                texto = LeitorQrImagem.ler(this, uri);
+            } catch (IOException | RuntimeException e) {
+                texto = null;
+                erro = e.getMessage();
+            }
+            String lido = texto;
+            String falha = erro;
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (lido != null) {
+                    ultimoCodigoLido = null;    // a mesma etiqueta pode ser lida de novo pela imagem
+                    processarResultadoLeitura(lido.trim(), ResultadoQr.FORMATO_IMAGEM);
+                } else {
+                    isScanning = layoutResultado.getVisibility() != View.VISIBLE;
+                    Toast.makeText(this, falha != null ? "Não foi possível ler a imagem: " + falha
+                            : "Nenhum QR Code encontrado na imagem.", Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "LeituraQrImagem").start();
+    }
+
+    // =========================================================================
+    // Geração de QR Code
+    // =========================================================================
+
+    private void exibirDialogoGerarQr() {
+        EditText input = new EditText(this);
+        input.setHint(R.string.qr_digitar_manual_hint);
+        input.setText("PAT-001");
+        input.setSelectAllOnFocus(true);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Gerar QR Code")
+                .setMessage("Informe o patrimônio do projetor:")
+                .setView(comMargem(input))
+                .setPositiveButton("Gerar", (dialog, which) -> {
+                    String patrimonio = CodigoQr.extrairPatrimonio(input.getText().toString());
+                    if (patrimonio == null) {
+                        Toast.makeText(this, "Código inválido. Use o padrão PAT-001.", Toast.LENGTH_LONG).show();
+                    } else {
+                        mostrarQrGerado(patrimonio);
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void mostrarQrGerado(String patrimonio) {
+        Bitmap qr;
+        try {
+            int lado = GeradorQrCode.TAMANHO_PADRAO;
+            qr = Bitmap.createBitmap(GeradorQrCode.gerarPixels(patrimonio, lado), lado, lado,
+                    Bitmap.Config.ARGB_8888);
+        } catch (Exception e) {
+            Toast.makeText(this, "Não foi possível gerar o QR Code: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        ImageView imagem = new ImageView(this);
+        imagem.setImageBitmap(qr);
+        imagem.setAdjustViewBounds(true);
+        imagem.setContentDescription("QR Code do projetor " + patrimonio);
+
+        AlertDialog.Builder dialogo = new AlertDialog.Builder(this)
+                .setTitle(patrimonio)
+                .setView(comMargem(imagem))
+                .setNegativeButton("Fechar", null);
+        // Salvar sem pedir permissão de armazenamento só é possível a partir do Android 10.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            dialogo.setPositiveButton("Salvar na galeria", (d, w) -> salvarNaGaleria(qr, patrimonio));
+        }
+        dialogo.show();
+    }
+
+    /** Salva em Imagens/CCT, para testar a leitura pela galeria ou imprimir a etiqueta. */
+    private void salvarNaGaleria(Bitmap qr, String patrimonio) {
+        ContentValues valores = new ContentValues();
+        valores.put(MediaStore.Images.Media.DISPLAY_NAME, "qr-" + patrimonio + ".png");
+        valores.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+        valores.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CCT");
+        Uri destino = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, valores);
+        if (destino == null) {
+            Toast.makeText(this, "Não foi possível salvar a imagem.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try (OutputStream saida = getContentResolver().openOutputStream(destino)) {
+            if (saida == null || !qr.compress(Bitmap.CompressFormat.PNG, 100, saida)) {
+                throw new IOException("falha ao gravar o PNG");
+            }
+            Toast.makeText(this, "Salvo em Imagens/CCT/qr-" + patrimonio + ".png", Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            getContentResolver().delete(destino, null, null);
+            Toast.makeText(this, "Não foi possível salvar a imagem: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private View comMargem(View conteudo) {
+        int pad = (int) (18 * getResources().getDisplayMetrics().density);
+        FrameLayout container = new FrameLayout(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(pad, pad / 2, pad, pad / 2);
+        conteudo.setLayoutParams(params);
+        container.addView(conteudo);
+        return container;
     }
 
     // =========================================================================
