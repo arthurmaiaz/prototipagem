@@ -113,5 +113,7 @@
     <string name="qr_btn_ler_novamente">Escanear outro código</string>
     <string name="qr_btn_digitar_manual">Digitar patrimônio manualmente</string>
     <string name="qr_digitar_manual_hint">Informe o código (ex.: PAT-001)</string>
-    <string name="qr_vinicius_aviso">Integração: a geração de QR Code oficial está em desenvolvimento pela equipe (Vinícius). O aplicativo valida o padrão PAT-001 e aguarda definições contratuais para rotas avançadas.</string>
+    <string name="qr_vinicius_aviso">Integração: leitura pela câmera e pela galeria e geração de QR Code baseadas na PoC de QR Code da equipe (Vinícius, issue #4). O padrão de patrimônio é PAT-001 (o prefixo projetor: também é aceito).</string>
+    <string name="qr_btn_ler_imagem">Ler de uma imagem</string>
+    <string name="qr_btn_gerar">Gerar QR Code</string>
 </resources>

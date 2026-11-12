@@ -108,14 +108,58 @@ paths:
                 $ref: "#/components/schemas/Erro"
   /v1/qr/read:
     post:
-      summary: Leitura de QR Code pela câmera (ainda não integrada)
+      summary: Abre a câmera, lê um QR Code e devolve o patrimônio
+      description: |
+        Se a tela "Ler QR Code" estiver fechada, o app tenta abri-la sozinho
+        (o Android só deixa com o app em primeiro plano; se não abrir em 5 s,
+        responde 503). O QR deve conter o patrimônio no padrão `PAT-001`; o
+        prefixo `projetor:` da PoC de QR Code é aceito (`projetor:PAT-001`).
+        A resposta traz também os campos da PoC (`status`, `text`, `format`,
+        `durationMs`). Uma leitura por vez.
       parameters:
         - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeoutSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 35
+                  default: 30
+            example: {}
       responses:
-        "501":
+        "200":
+          description: QR Code lido. `valid` diz se ele é de um projetor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeituraQr"
+        "400":
           $ref: "#/components/responses/Erro"
         "401":
           $ref: "#/components/responses/Erro"
+        "408":
+          description: Nenhum QR Code lido no tempo (vem com `status:"timeout"` e `text:null`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "409":
+          description: Já existe uma leitura de QR Code em andamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
+        "503":
+          description: A câmera não abriu, ou a tela foi fechada antes da leitura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Erro"
   /v1/biometric/identify:
     post:
       summary: Captura uma digital e devolve o e-mail do professor
@@ -265,6 +309,13 @@ components:
           example: simulado
         biometricPending:
           type: boolean
+        qrAvailable:
+          type: boolean
+        qrScreenOpen:
+          type: boolean
+          description: A tela "Ler QR Code" está aberta
+        qrPending:
+          type: boolean
         correlationId:
           type: string
     Biometria:
@@ -284,6 +335,38 @@ components:
         mode:
           type: string
           example: simulado
+        readAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+    LeituraQr:
+      type: object
+      properties:
+        success:
+          type: boolean
+        status:
+          type: string
+          example: ok
+        valid:
+          type: boolean
+        patrimony:
+          type: string
+          nullable: true
+          example: PAT-001
+        message:
+          type: string
+          example: Projetor PAT-001 identificado.
+        text:
+          type: string
+          description: Texto exatamente como veio do QR Code
+          example: projetor:PAT-001
+        format:
+          type: string
+          enum: [QR_CODE, IMAGEM, MANUAL]
+          description: IMAGEM quando veio de uma foto da galeria; MANUAL quando foi digitado na tela
+        durationMs:
+          type: integer
         readAt:
           type: string
           format: date-time

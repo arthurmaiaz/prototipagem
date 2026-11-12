@@ -19,6 +19,7 @@ import br.unifor.cct.R;
 import br.unifor.cct.biometria.BiometriaService;
 import br.unifor.cct.biometria.FakeFingerprintMatcher;
 import br.unifor.cct.biometria.FakeFingerprintReader;
+import br.unifor.cct.ui.LerQrCodeActivity;
 import br.unifor.cct.ui.TesteNfcActivity;
 
 /**
@@ -28,6 +29,10 @@ import br.unifor.cct.ui.TesteNfcActivity;
  * O serviço atende os pedidos, mas quem lê a tag é a TesteNfcActivity
  * (o Android só entrega tags para a Activity em primeiro plano): sem a tela
  * aberta, POST /v1/nfc/read responde 503. A notificação abre a tela.
+ *
+ * Para o QR Code é diferente: POST /v1/qr/read abre a LerQrCodeActivity
+ * sozinho. O Android só permite isso com o app em primeiro plano; se não
+ * abrir, a rota responde 503 e a tela tem que ser aberta à mão.
  */
 public class ServicoApiNfc extends Service {
 
@@ -85,8 +90,11 @@ public class ServicoApiNfc extends Service {
             startForeground(ID_NOTIFICACAO, notificacao());
         }
         if (servidor == null) {
+            PonteQr.padrao().setAbridor(() -> startActivity(new Intent(this, LerQrCodeActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(LerQrCodeActivity.EXTRA_PEDIDO_API, true)));
             ServidorHttp novo = new ServidorHttp(PORTA, new NfcRestApi(PonteNfc.padrao(), AUDITORIA,
-                    () -> TokenApi.obter(this), BuildConfig.VERSION_NAME, BIOMETRIA));
+                    () -> TokenApi.obter(this), BuildConfig.VERSION_NAME, BIOMETRIA, PonteQr.padrao()));
             try {
                 novo.iniciar();
                 servidor = novo;
@@ -104,6 +112,7 @@ public class ServicoApiNfc extends Service {
 
     @Override
     public void onDestroy() {
+        PonteQr.padrao().setAbridor(null);
         if (servidor != null) {
             servidor.parar();
             servidor = null;
